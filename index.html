@@ -769,7 +769,7 @@ const TZ_NAME = (()=>{ try{ return Intl.DateTimeFormat().resolvedOptions().timeZ
 const $ = s=>document.querySelector(s);
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2200); }
 function statusClass(s){return {"Watching":"s-watching","Caught up":"s-caught","Plan to watch":"s-plan","Finished":"s-done","Dropped":"s-dropped"}[s]||"s-caught";}
-function esc(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 // Surface the real Supabase error so save failures are diagnosable, not just "failed".
 function saveErr(e){ console.error("WatchLog save error:",e); return "Save failed — "+((e&&(e.message||e.details||e.hint))||"see console (F12)"); }
 
@@ -1467,7 +1467,9 @@ $("#searchInput").addEventListener("input",()=>{
 });
 $("#genreSel").onchange=doSearch;
 $("#closeEdit2").onclick=()=>$("#editOverlay").classList.remove("show");
-$("#results").addEventListener("click",e=>{ const el=e.target.closest(".result"); if(!el||el.classList.contains("added"))return; addShow(JSON.parse(el.dataset.m)); el.classList.add("added"); el.querySelector(".rm").innerHTML+=" · ✔ added"; });
+$("#results").addEventListener("click",e=>{ const el=e.target.closest(".result"); if(!el||el.classList.contains("added"))return;
+  let m; try{ m=JSON.parse(el.dataset.m); }catch(err){ console.error("Couldn't parse result:",err,el.dataset.m); toast("Couldn't read that title — please try again"); return; }
+  addShow(m); el.classList.add("added"); el.querySelector(".rm").innerHTML+=" · ✔ added"; });
 $("#closeEdit").onclick=()=>$("#editOverlay").classList.remove("show");
 $("#saveEdit").onclick=saveEdit;
 $("#removeShow").onclick=removeShow;
