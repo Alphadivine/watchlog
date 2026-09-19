@@ -4,7 +4,7 @@ A shared anime release tracker for you and your friends. See what airs each day,
 
 WatchLog is a single self-contained HTML file. No build step, no framework, no server of your own — it runs entirely in the browser and stores shared data in a free [Supabase](https://supabase.com) database.
 
-> **Live site:** https://qclayton15.github.io/watchlog/
+> **Live site:** _add your GitHub Pages URL here once deployed, e.g._ `https://yourname.github.io/watchlog/`
 
 ---
 
@@ -15,7 +15,8 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 - **Three views** — a Sun→Sat weekly calendar, a detailed list, and a poster wall.
 - **Accounts & profiles** — email/password login; pick a display name, avatar (emoji or image URL), and accent color.
 - **Personal lists, shared space** — everyone has their own list with their own progress/status/rating/notes, and can view anyone else's list read-only. Tap **＋ Add to mine** to copy a show you spotted on a friend's list.
-- **Community dub tracking** — no public API exposes English dub dates, so the group tracks the latest dubbed episode together with a shared, bumpable counter.
+- **Community dub tracking + predicted release day** — no public API exposes English dub dates, so the group tracks the latest dubbed episode with a shared, bumpable counter. WatchLog then **learns each show's dub weekday** from when the counter is bumped (or you can set it by hand in Edit) and shows the next dub on its expected day in the weekly calendar, with a countdown.
+- **Finished section** — shows you mark Finished collapse into their own tucked-away section instead of cluttering your active lineup.
 - **Delay-aware** — auto-re-syncs when a countdown elapses, shows an honest "expected…/checking" state, and offers a shared "delayed this week" flag that clears itself once the episode airs.
 - **Bulk import** from an AniList username (MyAnimeList via the AniList bridge — see notes).
 - **Genre browse, trending, search-as-you-type, filters & sorting.**
@@ -56,6 +57,8 @@ create table if not exists shows (
   progress   int  default 0,
   rating     int,
   dub_ep     int,
+  dub_day    int,          -- 0=Sun..6=Sat: manual override of the dub release weekday
+  dub_date   text,         -- 'YYYY-MM-DD' the latest dub was recorded (learns the day)
   delay_ep   int,
   notes      text default '',
   created_at timestamptz default now()
@@ -119,17 +122,34 @@ Share that link — everyone who opens it and logs in shares the same board. Use
 ---
 
 ## 🔄 Updating
-Replace `index.html` in your repo (edit or re-upload) and commit — Pages redeploys automatically in ~1 minute, same link. If a future version writes a new database field, add it with `alter table shows add column if not exists <name> <type>;`.
+Replace `index.html` in your repo (edit or re-upload) and commit — Pages redeploys automatically in ~1 minute, same link.
+
+**Upgrading an existing database** to the dub-release-day version? Run this once in the Supabase SQL Editor to add the two new columns (safe to re-run):
+
+```sql
+alter table shows add column if not exists dub_day  int;
+alter table shows add column if not exists dub_date text;
+```
+
+If a future version writes another new field, add it the same way: `alter table shows add column if not exists <name> <type>;`.
 
 ---
 
 ## 📖 Using WatchLog
 A friendly end-user walkthrough (great for pasting into Discord) lives in [`watchlog-guide-discord.md`](./watchlog-guide-discord.md). In short: log in, set your profile, add shows via search / genre / trending / import, and track progress, dubs, and delays from the cards.
 
+### Tracking dub release days
+Dubs almost always drop on a fixed weekday each week, but no API publishes that day ahead of time — so WatchLog figures it out two ways:
+
+- **Auto-learn (default):** whenever anyone bumps a show's 🎙️ dub counter after a new episode drops, WatchLog quietly records the date, works out the weekday, and predicts the next dub as +7 days — showing it on that day in the weekly calendar with a countdown (marked *est.*). After the first couple of bumps it locks onto the pattern.
+- **Set it by hand:** open a show's **Edit** panel and pick a **Dub release day** (e.g. "Saturdays") from what Crunchyroll lists. That takes effect immediately and overrides auto-learn. It's shared with your whole group.
+
+Until a show has either signal, it waits in a **🎙️ Dub still releasing** section (day not learned yet). Predicted dub days are estimates for the usual weekly cadence, shown in purple; sub airings from AniList are exact.
+
 ---
 
 ## ⚠️ Notes & limitations
-- **Dub dates** are community-maintained (a shared "latest dub episode" counter) because no free API publishes English dub schedules. AniList auto-detection fills it in on the rare shows where AniList lists dubbed episodes.
+- **Dub dates** are community-maintained because no free API publishes English dub schedules. The group bumps a shared "latest dub episode" counter; WatchLog learns the release **weekday** from those bumps (or a weekday you set by hand) and predicts the next drop as +7 days — a good estimate for the usual weekly cadence, not a guaranteed date. AniList auto-detection fills the counter in on the rare shows where AniList lists dubbed episodes.
 - **MyAnimeList import**: MAL's public list API is restricted. Import your MAL list into AniList (AniList → Settings → Import) and then import from the AniList tab.
 - **Notifications** fire only while the app tab is open (no background push).
 - **Air schedules** reflect the original Japanese/sub broadcast (what AniList tracks).
