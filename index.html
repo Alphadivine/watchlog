@@ -548,6 +548,7 @@
       <input type="password" id="authPw" placeholder="••••••••" autocomplete="current-password" />
       <div id="authErr" style="color:var(--pink);font-size:12.5px;margin-top:10px;min-height:16px"></div>
       <button class="linklike" id="authToggle" style="margin-top:8px">New here? <b>Create an account</b></button>
+      <button class="linklike" id="authForgot" style="margin-top:6px;display:block">Forgot password?</button>
     </div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="document.getElementById('authOverlay').classList.remove('show')">Cancel</button>
@@ -1664,28 +1665,39 @@ document.addEventListener("click",e=>{ if(e.target.closest("#emptyLoginBtn")) op
 /* ----- Auth modal ----- */
 let authMode="signin";
 function openAuth(){ authMode="signin"; renderAuthMode(); $("#authErr").textContent=""; $("#authEmail").value=""; $("#authPw").value=""; $("#authOverlay").classList.add("show"); setTimeout(()=>$("#authEmail").focus(),50); }
+function authMsg(text, ok){ const e=$("#authErr"); e.style.color = ok ? "#4de6a8" : "var(--pink)"; e.textContent=text; }
 function renderAuthMode(){
   $("#authTitle").textContent = authMode==="signin"?"Log in":"Create account";
   $("#authSubmit").textContent = authMode==="signin"?"Log in":"Sign up";
   $("#authToggle").innerHTML = authMode==="signin"
     ? "New here? <b>Create an account</b>" : "Already have an account? <b>Log in</b>";
+  $("#authForgot").style.display = authMode==="signin" ? "block" : "none";   // only meaningful when logging in
 }
-$("#authToggle").onclick=()=>{ authMode=authMode==="signin"?"signup":"signin"; $("#authErr").textContent=""; renderAuthMode(); };
+$("#authToggle").onclick=()=>{ authMode=authMode==="signin"?"signup":"signin"; authMsg("",false); renderAuthMode(); };
+// Email a password-reset link (works even if they've forgotten it entirely).
+$("#authForgot").onclick=async ()=>{
+  const email=$("#authEmail").value.trim();
+  if(!email){ authMsg("Type your email above first, then tap Forgot password.",false); $("#authEmail").focus(); return; }
+  try{
+    await fb.auth.sendPasswordResetEmail(email);
+    authMsg("Reset link sent — check "+email+" (and your spam folder).",true);
+  }catch(err){ authMsg(err.message||"Couldn't send the reset email.",false); }
+};
 async function submitAuth(){
   const email=$("#authEmail").value.trim(), pw=$("#authPw").value;
-  if(!email||!pw){ $("#authErr").textContent="Enter an email and password."; return; }
-  if(pw.length<6){ $("#authErr").textContent="Password must be at least 6 characters."; return; }
+  if(!email||!pw){ authMsg("Enter an email and password.",false); return; }
+  if(pw.length<6){ authMsg("Password must be at least 6 characters.",false); return; }
   const btn=$("#authSubmit"); btn.disabled=true; btn.textContent="…";
   try{
     if(authMode==="signup"){
       const r=await authSignUp(email,pw);
-      if(!r.session){ $("#authErr").textContent="Account created — now log in."; authMode="signin"; renderAuthMode(); btn.disabled=false; return; }
+      if(!r.session){ authMsg("Account created — now log in.",true); authMode="signin"; renderAuthMode(); btn.disabled=false; return; }
     } else {
       await authSignIn(email,pw);
     }
     $("#authOverlay").classList.remove("show");
     // onAuthStateChange handles the rest
-  }catch(err){ $("#authErr").textContent = err.message||"Something went wrong."; }
+  }catch(err){ authMsg(err.message||"Something went wrong.",false); }
   btn.disabled=false; renderAuthMode();
 }
 $("#authSubmit").onclick=submitAuth;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10 — Forgot-password link
+- Added a **Forgot password?** link on the login screen. It emails a reset link
+  (via Firebase Auth) so anyone can set their own password — handy when an
+  account was created for them by someone else. Shown only in log-in mode.
+
 ## 2026-10 — Moved backend from Supabase to Firebase
 - **Backend migrated to Firebase** (Firestore + Firebase Auth), so WatchLog now
   lives on the same platform as the other apps. The data layer (`CloudStore`),

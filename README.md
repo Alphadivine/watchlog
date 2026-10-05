@@ -4,7 +4,7 @@ A shared anime release tracker for you and your friends. See what airs each day,
 
 WatchLog is a single self-contained HTML file. No build step, no framework, no server of your own — it runs entirely in the browser and stores shared data in a free [Firebase](https://firebase.google.com) (Firestore) project.
 
-> **Live site:** _add your GitHub Pages URL here once deployed, e.g._ `https://yourname.github.io/watchlog/`
+> **Live site:** **https://alphadivine.github.io/watchlog/**
 
 ---
 
@@ -13,7 +13,7 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 - **Auto schedule from [AniList](https://anilist.co)** — add a show and it pulls the air day, air time, and a live next-episode countdown automatically.
 - **Local timezones** — everyone sees air times converted to their own timezone from UTC.
 - **Three views** — a Sun→Sat weekly calendar, a detailed list, and a poster wall.
-- **Accounts & profiles** — Firebase email/password login; pick a display name, avatar (emoji or image URL), and accent color.
+- **Accounts & profiles** — Firebase email/password login (with a **Forgot password?** reset-by-email link); pick a display name, avatar (emoji or image URL), and accent color.
 - **Personal lists, shared space** — everyone has their own list with their own progress/status/rating/notes, and can view anyone else's list read-only. Tap **＋ Add to mine** to copy a show you spotted on a friend's list.
 - **Community dub tracking + predicted release day** — no public API exposes English dub dates, so the group tracks the latest dubbed episode with a shared, bumpable counter. WatchLog then **learns each show's dub weekday** from when the counter is bumped (or you can set it by hand in Edit) and shows the next dub on its expected day in the weekly calendar, with a countdown.
 - **Finished section** — shows you mark Finished collapse into their own tucked-away section instead of cluttering your active lineup.
