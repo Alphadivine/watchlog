@@ -926,6 +926,28 @@ function dubCdText(ds){
   if(isSameLocalDay(at)) return {day:DAYS[ds.weekday], txt:"today"};
   return {day:DAYS[ds.weekday], txt:fmtCountdown(at).txt};
 }
+// Is the dub for this show known to be fully caught up to the total? (nothing more coming)
+function dubComplete(s){ const tot=totalEps(s.anilistId), dl=dubLatest(s.anilistId); return !!(tot && dl && dl.ep>=tot); }
+/* One source of truth for where a show sits in the weekly view, so the day column
+   and the card agree. A hand-SET dub day is an explicit choice and wins over the sub
+   air day (this app is dub-first); it also applies even before any dub episode is
+   tracked. Otherwise the exact sub schedule is used while the sub is simulcasting,
+   then an auto-learned dub day once the sub has finished.
+   Returns one of:
+     {kind:"sub",  dayIndex, at}
+     {kind:"dub",  dayIndex, at, ds}   // placed on a predicted/declared dub day
+     {kind:"dubTBD"}                   // dub coming but no day known yet
+     {kind:"break"} | {kind:"finished"} */
+function weekSlot(s){
+  if(s.status==="Finished") return {kind:"finished"};
+  const ds=dubSchedule(s.anilistId);
+  const a=airInfo(s.anilistId);
+  if(ds && ds.source==="manual" && !dubComplete(s))
+    return {kind:"dub", dayIndex:ds.weekday, at:ds.next.getTime(), ds};   // explicit day wins
+  if(a.dayIndex!=null) return {kind:"sub", dayIndex:a.dayIndex, at:a.at||0};  // sub simulcasting → exact
+  if(dubStillReleasing(s)) return ds ? {kind:"dub", dayIndex:ds.weekday, at:ds.next.getTime(), ds} : {kind:"dubTBD"};
+  return {kind:"break"};
+}
 
 /* ---------------- Rendering ---------------- */
 function visibleShows(){
@@ -945,8 +967,12 @@ function showCard(s){
   const ro = isReadOnly();
   const now=Date.now();
   const delayed = isDelayed(s.anilistId);
+  const slot=weekSlot(s);
   let cd="";
-  if(a.cd==="upcoming" && delayed){
+  if(slot.kind==="dub"){ const dl=dubLatest(s.anilistId), ds=slot.ds, c=dubCdText(ds);
+    const epTxt = dl?`Dub Ep ${dl.ep+1}`:"Next dub";
+    cd=`<div class="countdown dubcd">🎙️ ${epTxt} expected ${c.day}${c.txt==="today"?" — today":" · "+c.txt}${ds.source==="auto"?" <span class='est'>est.</span>":""}</div>`; }
+  else if(a.cd==="upcoming" && delayed){
     cd=`<div class="countdown warn">⚠️ Delayed this week — new time TBD</div>`; }
   else if(a.cd==="upcoming" && a.at>now){ const f=fmtCountdown(a.at); const p=Math.max(4,Math.min(100,(1-(a.at-now)/(7*864e5))*100));
     cd=`<div class="countdown ${f.soon?"soon":""}"><span class="ring" style="--p:${p.toFixed(0)}"></span>Ep ${a.nextEp} in ${f.txt}</div>`; }
@@ -954,10 +980,8 @@ function showCard(s){
     cd=`<div class="countdown soon">🟢 Ep ${a.nextEp} out now / just dropped</div>`; }
   else if(a.cd==="upcoming"){
     cd=`<div class="countdown warn">⏳ Ep ${a.nextEp} expected — checking for delays…</div>`; }
-  else if(dubStillReleasing(s)){ const dl=dubLatest(s.anilistId), tot=totalEps(s.anilistId), ds=dubSchedule(s.anilistId);
-    if(ds){ const c=dubCdText(ds);
-      cd=`<div class="countdown dubcd">🎙️ Dub Ep ${dl.ep+1} expected ${c.day}${c.txt==="today"?" — today":" · "+c.txt}${ds.source==="auto"?" <span class='est'>est.</span>":""}</div>`; }
-    else cd=`<div class="countdown dubcd">🎙️ Dub Ep ${dl.ep} / ${tot} — ${tot-dl.ep} more coming <span class='est'>day TBD</span></div>`; }
+  else if(slot.kind==="dubTBD"){ const dl=dubLatest(s.anilistId), tot=totalEps(s.anilistId);
+    cd=`<div class="countdown dubcd">🎙️ Dub Ep ${dl?dl.ep:0}${tot?" / "+tot:""} — more coming <span class='est'>day TBD</span></div>`; }
   else if(a.cd==="finished") cd=`<div class="countdown done">✔ Finished airing</div>`;
   else if(a.cd==="notyet") cd=`<div class="countdown done">🕓 Not yet aired</div>`;
   else if(a.cd==="none") cd=`<div class="countdown done">— On break / no schedule</div>`;
@@ -965,8 +989,9 @@ function showCard(s){
 
   const dub=dubLatest(s.anilistId);
   const dubTag = dub ? `<span class="tag dubtag" title="Latest English dub episode out${dub.src==="group"?" (shared by your group)":" (from AniList)"}">🎙️ Dub · Ep ${dub.ep} out</span>` : "";
-  const dayTag = a.dayName ? `<span class="tag day">📆 ${a.dayName}</span>` : "";
-  const timeTag = a.time ? `<span class="tag time" title="Shown in your local timezone (${esc(TZ_NAME)}). Converted from UTC.">🕒 ${a.time}${TZ_ABBR?" "+TZ_ABBR:""}</span>` : "";
+  // When a show is placed on its dub day, suppress the sub air day/time so the card isn't self-contradictory.
+  const dayTag = (slot.kind!=="dub" && a.dayName) ? `<span class="tag day">📆 ${a.dayName}</span>` : "";
+  const timeTag = (slot.kind!=="dub" && a.time) ? `<span class="tag time" title="Shown in your local timezone (${esc(TZ_NAME)}). Converted from UTC.">🕒 ${a.time}${TZ_ABBR?" "+TZ_ABBR:""}</span>` : "";
   const airedLbl = a.airedEps!=null ? `${a.airedEps}${a.total?" / "+a.total:""} aired` : "";
   const cover = s.cover ? `style="background-image:url('${esc(s.cover)}')"` : "";
   const today = a.cd==="upcoming" && isSameLocalDay(a.at);
@@ -1045,26 +1070,31 @@ function weekCard(s){
   const now=Date.now();
   const delayed=isDelayed(s.anilistId);
   const dub=dubLatest(s.anilistId);
+  const slot=weekSlot(s);
+  const tot=totalEps(s.anilistId);
   let cd="";
-  if(delayed) cd=`<span class="wk-cd warn">⚠️ Delayed</span>`;
+  if(slot.kind==="dub"){ const c=dubCdText(slot.ds);
+    cd=`<span class="wk-cd dubcd">🎙️ ${c.txt==="today"?"today":c.txt}${slot.ds.source==="auto"?" <span class='est'>est</span>":""}</span>`; }
+  else if(delayed) cd=`<span class="wk-cd warn">⚠️ Delayed</span>`;
   else if(a.cd==="upcoming" && a.at>now){ const f=fmtCountdown(a.at); cd=`<span class="wk-cd ${f.soon?"soon":""}">⏳ ${f.txt}</span>`; }
   else if(a.cd==="upcoming" && now-a.at<90*60000) cd=`<span class="wk-cd soon">🟢 out now</span>`;
   else if(a.cd==="upcoming") cd=`<span class="wk-cd warn">expected…</span>`;
-  const ds = dubStillReleasing(s) ? dubSchedule(s.anilistId) : null;
-  if(!cd && dubStillReleasing(s)){ const dl=dubLatest(s.anilistId), tot=totalEps(s.anilistId);
-    cd = ds ? `<span class="wk-cd dubcd">🎙️ ${dubCdText(ds).txt==="today"?"today":dubCdText(ds).txt}</span>` : `<span class="wk-cd dubcd">🎙️ Dub ${dl.ep}/${tot}</span>`; }
-  if(!cd && a.cd==="finished") cd=`<span class="wk-cd done">✔ finished</span>`;
-  else if(!cd && a.cd==="none") cd=`<span class="wk-cd done">on break</span>`;
-  const today=a.cd==="upcoming" && isSameLocalDay(a.at);
+  else if(slot.kind==="dubTBD") cd=`<span class="wk-cd dubcd">🎙️ Dub ${dub?dub.ep:0}${tot?"/"+tot:""}</span>`;
+  else if(a.cd==="finished") cd=`<span class="wk-cd done">✔ finished</span>`;
+  else cd=`<span class="wk-cd done">on break</span>`;
+  const today = slot.kind==="sub" ? isSameLocalDay(a.at) : (slot.kind==="dub" && isSameLocalDay(slot.at));
   const cover=s.cover?`style="background-image:url('${esc(s.cover)}')"`:"";
-  const epLine = a.nextEp ? `Ep ${a.nextEp}${dub?` &nbsp;·&nbsp; 🎙️ Dub ${dub.ep}`:""}`
-    : (ds ? `🎙️ Dub Ep ${dubLatest(s.anilistId).ep+1} expected` : (dub?`🎙️ Dub Ep ${dub.ep} out`:""));
+  let epLine;
+  if(slot.kind==="dub") epLine = dub?`🎙️ Dub Ep ${dub.ep+1} expected`:`🎙️ Dub episode expected`;
+  else if(a.nextEp) epLine = `Ep ${a.nextEp}${dub?` &nbsp;·&nbsp; 🎙️ Dub ${dub.ep}`:""}`;
+  else epLine = dub?`🎙️ Dub Ep ${dub.ep} out`:"";
+  const showTime = slot.kind==="sub" && a.time;
   return `<button class="wcard ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" title="${esc(s.title)} — tap for details">
     <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
     <div class="wcover" ${cover}></div>
     <div class="wbody">
       <div class="wtitle">${esc(s.title)}</div>
-      <div class="wmeta">${a.time?`<span class="wk-time">🕒 ${esc(a.time)}</span>`:""}${cd}</div>
+      <div class="wmeta">${showTime?`<span class="wk-time">🕒 ${esc(a.time)}</span>`:""}${cd}</div>
       ${epLine?`<div class="wep">${epLine}</div>`:""}
     </div>
   </button>`;
@@ -1079,14 +1109,11 @@ function renderWeek(){
   const byDay={}; order.forEach(d=>byDay[d]=[]);
   const dubReleasing=[], onBreak=[], finished=[];
   list.forEach(s=>{
-    if(s.status==="Finished"){ finished.push(s); return; }        // completed → its own section
-    const a=airInfo(s.anilistId);
-    if(a.dayIndex!=null){ byDay[a.dayIndex].push({s,at:a.at||0}); return; }   // scheduled by sub
-    if(dubStillReleasing(s)){
-      const ds=dubSchedule(s.anilistId);
-      if(ds){ byDay[ds.weekday].push({s,at:ds.next.getTime(),dub:true}); return; }  // predicted dub day → its column
-      dubReleasing.push(s); return;                               // dub coming, day not learned yet
-    }
+    const slot=weekSlot(s);
+    if(slot.kind==="finished"){ finished.push(s); return; }
+    if(slot.kind==="dub"){ byDay[slot.dayIndex].push({s,at:slot.at,dub:true}); return; }
+    if(slot.kind==="sub"){ byDay[slot.dayIndex].push({s,at:slot.at}); return; }
+    if(slot.kind==="dubTBD"){ dubReleasing.push(s); return; }     // dub coming, day not learned yet
     onBreak.push(s);                                              // truly no upcoming
   });
   let html=`<div class="week">`;
