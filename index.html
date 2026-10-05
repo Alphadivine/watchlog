@@ -113,6 +113,12 @@
   .finished-sec>div{margin-top:4px;padding-bottom:6px}
   .dropped-sec>summary{color:var(--pink)}
   .prof-sep{border:none;border-top:1px solid var(--line);margin:16px 0 4px}
+  /* Browse by release day */
+  .day-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 10px}
+  .day-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .daychip{background:var(--card2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:700;cursor:pointer;transition:all .15s}
+  .daychip:hover{color:var(--text);border-color:var(--accent)}
+  .daychip.active{background:var(--accent);color:#0b0b18;border-color:transparent}
   /* Season grouping */
   .series-grp{grid-column:1/-1;width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0}
   .series-grp[open]{box-shadow:var(--glow)}
@@ -499,6 +505,12 @@
         <select id="genreSel" class="filter" title="Filter by genre"></select>
         <span class="hint" style="margin:0">Pick a genre to browse, or combine it with a search.</span>
       </div>
+      <div class="day-row">
+        <span class="hint" style="margin:0">📅 Or browse by release day:</span>
+        <div class="day-chips" id="dayChips">
+          <button class="daychip" data-dow="0">Sun</button><button class="daychip" data-dow="1">Mon</button><button class="daychip" data-dow="2">Tue</button><button class="daychip" data-dow="3">Wed</button><button class="daychip" data-dow="4">Thu</button><button class="daychip" data-dow="5">Fri</button><button class="daychip" data-dow="6">Sat</button>
+        </div>
+      </div>
       <div class="results" id="results"><div class="hint">Start typing a title, pick a genre, or hit <b>🔥 Trending</b>. Powered by AniList.</div></div>
     </div>
     <div class="modal-foot">
@@ -672,8 +684,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.05b";
+const APP_VERSION = "2026.10.05c";
 const WHATS_NEW = [
+  { v:"2026.10.05c", title:"Browse by release day", items:[
+    "📅 <b>Browse by release day</b> — in <b>＋ Add anime</b>, tap a weekday (Sun–Sat) to see every anime that airs that day in your timezone. Great for filling an empty slot with something new.",
+  ]},
   { v:"2026.10.05b", title:"Watch together, easier", items:[
     "👥 <b>Watch-sync</b> — on shows you both track, each card shows where everyone is (e.g. 'You · Ep 5 · Demon · Ep 4'), with an 'in sync ✓' when you're matched.",
     "🎲 <b>Pick for us</b> — a new toolbar button picks a random title from your Plan to watch when you can't decide.",
@@ -719,6 +734,10 @@ const REFRESH_Q = `query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIM
 const TRENDING_Q = `query{Page(perPage:24){media(type:ANIME,status:RELEASING,sort:TRENDING_DESC,isAdult:false){
   id title{romaji english} coverImage{medium} format status episodes seasonYear
   nextAiringEpisode{airingAt timeUntilAiring episode} siteUrl}}}`;
+// All episodes airing within a time window — used to browse by release weekday.
+const AIRING_DAY_Q = `query($start:Int,$end:Int){Page(perPage:50){airingSchedules(airingAt_greater:$start,airingAt_lesser:$end,sort:TIME){
+  episode airingAt media{ id title{romaji english} coverImage{medium} format status episodes seasonYear siteUrl isAdult type
+  nextAiringEpisode{airingAt timeUntilAiring episode} }}}}`;
 const USERLIST_Q = `query($u:String){MediaListCollection(userName:$u,type:ANIME){lists{entries{
   status progress media{id title{romaji english} coverImage{medium} siteUrl}}}}}`;
 const BYMAL_Q = `query($ids:[Int]){Page(perPage:50){media(idMal_in:$ids,type:ANIME){
@@ -1475,6 +1494,29 @@ async function loadTrending(){
     renderResults(data.Page.media||[], "🔥 Trending this season:");
   }catch(e){ box.innerHTML=`<div class="hint">Couldn't load trending: ${esc(e.message)}.</div>`; }
 }
+// Browse anime that air on a given weekday (in your local timezone), to fill an
+// empty slot. Uses AniList's airing schedule (the Japanese/sub broadcast day).
+async function browseByDay(dow){
+  const box=$("#results"); const seq=++searchSeq;
+  [...document.querySelectorAll("#dayChips .daychip")].forEach(b=>b.classList.toggle("active", Number(b.dataset.dow)===dow));
+  box.innerHTML=`<div style="text-align:center;padding:24px"><span class="spinner"></span><div class="hint" style="margin-top:8px">Finding shows that air on ${DAYS[dow]}…</div></div>`;
+  const d=new Date(); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7));   // next occurrence (today if it matches)
+  const start=Math.floor(d.getTime()/1000), end=start+24*3600;
+  try{
+    const data=await aniQuery(AIRING_DAY_Q,{start:start-1,end});
+    if(seq!==searchSeq) return;
+    const seen=new Set(), media=[];
+    (data.Page.airingSchedules||[]).forEach(a=>{
+      const m=a.media; if(!m || m.isAdult || m.type!=="ANIME") return;
+      if(new Date(a.airingAt*1000).getDay()!==dow) return;    // safety: match local weekday
+      if(seen.has(m.id)) return; seen.add(m.id); media.push(m);
+    });
+    if(!media.length){ box.innerHTML=`<div class="hint">No ${DAYS[dow]} releases found right now — try another day or 🔥 Trending.</div>`; return; }
+    renderResults(media, `📅 Airing on ${DAYS[dow]}s · ${media.length} show${media.length>1?"s":""} (sub broadcast day):`);
+  }catch(e){ box.innerHTML=`<div class="hint">Couldn't load ${DAYS[dow]} releases: ${esc(e.message)}.</div>`; }
+}
+$("#dayChips").addEventListener("click",e=>{ const b=e.target.closest(".daychip"); if(!b) return; browseByDay(Number(b.dataset.dow)); });
 function renderResults(media, heading){
   const box=$("#results");
   const have=new Set(showsForUid(meId()).map(s=>String(s.anilistId)));   // only MY list counts as "added"

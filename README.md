@@ -27,6 +27,7 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 - **Delay-aware** — auto-re-syncs when a countdown elapses, shows an honest "expected…/checking" state, and offers a shared "delayed this week" flag that clears itself once the episode airs.
 - **Bulk import** from an AniList username (MyAnimeList via the AniList bridge — see notes).
 - **Genre browse, trending, search-as-you-type, filters & sorting.**
+- **Browse by release day** — in ＋ Add anime, tap a weekday to see everything airing that day in your timezone (great for filling an empty slot).
 - **Ratings** with a per-show group average, **streaming links** (Crunchyroll/Netflix/etc.), **calendar (.ics) export**, and optional **browser notifications** ~1h before a show airs.
 - **Light/dark themes, per-user accent tint, and a mobile-friendly layout** (add to home screen for an app-like feel).
 

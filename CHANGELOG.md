@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10 — Browse by release day
+- **Browse by release day:** the ＋ Add anime panel now has Sun–Sat chips. Tap a
+  day to see every anime that airs that weekday in your timezone (via AniList's
+  airing schedule) — handy for filling an empty day with something new. Each
+  result still has the ⓘ preview and one-tap add.
+
 ## 2026-10 — Removed the "New this week" badge
 - Removed the 🆕 "New ep/New dub" badge. It couldn't reliably tell when a new
   *dub* actually released — the sub version flagged sub airings (irrelevant for
