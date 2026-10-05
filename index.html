@@ -702,8 +702,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.05d";
+const APP_VERSION = "2026.10.05e";
 const WHATS_NEW = [
+  { v:"2026.10.05e", title:"Fixes: schedules for big lists & no more lost place", items:[
+    "🗓️ <b>All your shows get their schedule now</b> — on boards with more than 50 shows, everything past the first 50 was missing its air day/countdown and landed under 'On break' (that's why <i>The Vermilion Mask</i> wasn't showing under 'Coming soon'). WatchLog now loads them all.",
+    "📌 <b>Stops losing your place</b> — when the app re-synced in the background it jumped you back to the top and closed any card you'd expanded. It now keeps your scroll position and expanded series open through a sync.",
+  ]},
   { v:"2026.10.05d", title:"Character avatars, new logo & more", items:[
     "🎭 <b>Anime character avatars</b> — in your profile, search a show (or tap one of yours) and pick a character's portrait as your avatar, pulled from AniList.",
     "💬 <b>New logo</b> — a speech bubble with a play button, a nod to dubs.",
@@ -1195,7 +1199,8 @@ function renderGrouped(list, renderOne){
     const seasons=g.slice().sort((a,b)=>seasonNum(a.title)-seasonNum(b.title));
     const rep=seasons[seasons.length-1];
     const cover=rep.cover?hiRes(rep.cover):"";
-    return `<details class="series-grp">
+    const gkey=seriesKeyOf(g[0])||("__"+g[0].id);
+    return `<details class="series-grp" data-grp="${esc(gkey)}">
       <summary class="series-sum">
         <span class="series-cv" style="${cover?`background-image:url('${esc(cover)}')`:""}"></span>
         <span class="series-info"><span class="series-ttl">${esc(seriesLabel(seasons))}</span>
@@ -1479,6 +1484,23 @@ function renderProfiles(){
   }).join("");
   bar.innerHTML = `<div class="profrow">${chips}</div>`;
 }
+/* Preserve the user's place across background re-renders. A Firestore sync or an
+   AniList auto-refresh rebuilds the board's innerHTML, which would otherwise jump
+   the page back to the top and collapse any expanded series card — as if the page
+   had just reloaded. Snapshot the scroll position and which series are open, then
+   put them back after the rebuild. */
+function captureViewState(){
+  let open=null;
+  try{ open=new Set([...document.querySelectorAll("#viewRoot details.series-grp[open]")].map(d=>d.dataset.grp).filter(Boolean)); }catch(e){}
+  return { open, y: window.scrollY || document.documentElement.scrollTop || 0 };
+}
+function restoreViewState(st){
+  if(!st) return;
+  try{
+    if(st.open && st.open.size) document.querySelectorAll("#viewRoot details.series-grp").forEach(d=>{ if(d.dataset.grp && st.open.has(d.dataset.grp)) d.open=true; });
+  }catch(e){}
+  if(st.y) try{ window.scrollTo(0, st.y); }catch(e){}
+}
 function render(){
   const ro=isReadOnly();
   const canEdit=loggedIn() && !ro;
@@ -1488,16 +1510,19 @@ function render(){
   applyAccent();
   renderProfiles();
   const rob=$("#roBanner"); if(rob){ const showBanner=ro&&loggedIn()&&viewingUid; rob.style.display = showBanner ? "flex":"none"; const rn=$("#roName"); if(rn&&showBanner) rn.textContent=displayName(viewingUid); }
-  // Don't rebuild the board behind an open Add/Edit dialog — the churn (e.g. while
-  // bulk-adding) causes jank, focus loss and stray taps. Defer until it closes.
-  if($("#addOverlay").classList.contains("show") || $("#editOverlay").classList.contains("show")){ pendingView=true; return; }
+  // Don't rebuild the board behind an open dialog — the churn (e.g. while bulk-adding
+  // or reading a show's details) causes jank, focus loss and stray taps. Defer until
+  // it closes (flushed by closeOverlay and the 1.2s safety interval).
+  if(document.querySelector(".overlay.show")){ pendingView=true; return; }
   pendingView=false;
+  const st=captureViewState();
   const mine=ownerShows();
   const hero=$("#heroRoot"); if(hero) hero.innerHTML = mine.length ? heroHTML() : "";
   if(!mine.length){ $("#viewRoot").innerHTML=emptyState(); return; }
   if(currentView==="week") renderWeek();
   else if(currentView==="posters") renderPosters();
   else renderList();
+  restoreViewState(st);
 }
 function renderAccount(){
   const li=$("#loginBtn"), ab=$("#acctBtn");
@@ -1514,9 +1539,16 @@ function renderAccount(){
 async function refreshLive(quiet){
   const ids=[...new Set(shows.map(s=>Number(s.anilistId)).filter(Boolean))];
   if(!ids.length) return;
+  // AniList returns at most 50 media per page, so request in chunks of 50.
+  // Otherwise a board with >50 shows silently loses schedule data for everything
+  // past the first 50 — those cards show "On break / loading" with no air day or
+  // countdown, and never-aired ones miss the "Coming soon" bucket.
+  const chunks=[]; for(let i=0;i<ids.length;i+=50) chunks.push(ids.slice(i,i+50));
   try{
-    const data=await aniQuery(REFRESH_Q,{ids});
-    (data.Page.media||[]).forEach(m=>live.set(m.id,m));
+    for(const c of chunks){
+      const data=await aniQuery(REFRESH_Q,{ids:c});
+      (data.Page.media||[]).forEach(m=>live.set(m.id,m));
+    }
     buildFranchise();      // recompute series clusters from the freshest relations
     render();
   }catch(e){ console.warn("live refresh failed",e); if(!quiet) toast("Couldn't reach AniList — check connection"); }

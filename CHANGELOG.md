@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10 — Fixes: schedules for large lists & keep your place on sync
+- **Schedules now load for every show, not just the first 50.** The live AniList
+  refresh requested every tracked show's data in a single page, but AniList caps
+  a page at 50 results — so on the shared board (82 shows) ~25 shows past the
+  first 50 got **no** schedule data. They showed as "On break / loading" with no
+  air day or countdown, and never-aired ones (e.g. *The Vermilion Mask*) never
+  reached the new **Coming soon** bucket. The refresh now fetches ids in chunks
+  of 50, so all shows get their air day, countdown, dub status and series links.
+- **Background re-syncs no longer lose your place.** When Firestore pushed an
+  update or a countdown elapsed, the board re-rendered and the page jumped back
+  to the top and collapsed any expanded series card — as if it had reloaded
+  mid-action. The re-render now restores your scroll position and keeps expanded
+  series open, and it's deferred entirely while any dialog is open.
+
 ## 2026-10 — Unique counts & smarter season grouping
 - **Count = unique anime:** the number next to each name now counts unique shows
   (all seasons of one anime count once), not every season separately.
