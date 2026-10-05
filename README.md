@@ -17,6 +17,8 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 - **Personal lists, shared space** — everyone has their own list with their own progress/status/rating/notes, and can view anyone else's list read-only. Tap **＋ Add to mine** to copy a show you spotted on a friend's list.
 - **Community dub tracking + predicted release day** — no public API exposes English dub dates, so the group tracks the latest dubbed episode with a shared, bumpable counter. WatchLog then **learns each show's dub weekday** from when the counter is bumped (or you can set it by hand in Edit) and shows the next dub on its expected day in the weekly calendar, with a countdown.
 - **Finished & Dropped sections** — shows you mark Finished or Dropped collapse into their own tucked-away sections instead of cluttering your active lineup.
+- **Watch-sync** — on shows you both track, each card shows where everyone is (e.g. "You · Ep 5 · Demon · Ep 4"), with an "in sync ✓" when matched.
+- **"Pick for us"** — a 🎲 toolbar button picks a random title from your Plan to watch when you can't decide.
 - **Season grouping** — same-show seasons collapse into one expandable card (each season stays separately tracked).
 - **What's new popup** — a ✨ button (and a once-per-version popup) summarizes new features.
 - **Preview before adding** — every search result has an ⓘ button to read the synopsis, genres and streaming links without adding it; add from the preview if it looks good.

@@ -134,6 +134,13 @@
   .wn-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
   .wn-list li{font-size:13.5px;line-height:1.45;padding-left:4px;color:var(--text)}
   .wn-list li b{font-weight:700}
+  /* Watch-sync row */
+  .syncrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 2px}
+  .syncchip{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:3px 10px 3px 3px;font-size:11.5px}
+  .syncchip .pav.sm{width:20px;height:20px;font-size:11px}
+  .syncnm{color:var(--muted);font-weight:600}
+  .syncep{color:var(--text);font-weight:800}
+  .syncok{font-size:11px;font-weight:700;color:var(--good)}
   .wk-cd.dubcd,.countdown.dubcd{color:#c9bcff;filter:none}
   .countdown.dubcd .est,.wk-cd.dubcd .est{font-size:10px;opacity:.7;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
   .dub-legend{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--faint);margin:12px 2px 2px;line-height:1.4}
@@ -468,6 +475,7 @@
     <div class="grow"></div>
     <button class="btn ghost sm" id="importBtn" title="Import your list from AniList or MyAnimeList">⬇️ Import</button>
     <button class="btn ghost sm" id="notifyBtn" title="Get notified before episodes air">🔔 Notify</button>
+    <button class="btn ghost sm" id="pickBtn" title="Pick something from your Plan to watch">🎲 Pick for us</button>
     <button class="btn ghost sm" id="whatsNewBtn" title="What's new">✨</button>
     <button class="btn ghost sm" id="themeBtn" title="Toggle light / dark">☀️</button>
     <button class="btn ghost sm" id="refreshBtn" title="Refresh schedules from AniList">🔄 Refresh</button>
@@ -666,8 +674,13 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.05";
+const APP_VERSION = "2026.10.05b";
 const WHATS_NEW = [
+  { v:"2026.10.05b", title:"Watch together, easier", items:[
+    "👥 <b>Watch-sync</b> — on shows you both track, each card shows where everyone is (e.g. 'You · Ep 5 · Demon · Ep 4'), with an 'in sync ✓' when you're matched.",
+    "🎲 <b>Pick for us</b> — a new toolbar button picks a random title from your Plan to watch when you can't decide.",
+    "🖼️ Cleaner Next-up banner for shows without a wide banner image.",
+  ]},
   { v:"2026.10.05", title:"Installable app, season grouping & more", items:[
     "📲 <b>Install WatchLog as an app</b> — add it to your home screen for a fullscreen, app-like feel that loads offline.",
     "🗂️ <b>Seasons group together</b> — same-show seasons now collapse into one expandable card to cut the clutter.",
@@ -854,6 +867,20 @@ function applyAccent(){
 
 /* ---------------- Ratings + social helpers ---------------- */
 function watchersOf(aniId){ return shows.filter(s=> String(s.anilistId)===String(aniId) && ownerOf(s)!=null); }
+// Watch-sync: on a show more than one person tracks, show where each of them is.
+function syncRow(s){
+  const byOwner=new Map();
+  watchersOf(s.anilistId).forEach(w=>{ const o=ownerOf(w); if(o!=null && !byOwner.has(o)) byOwner.set(o, w.progress||0); });
+  if(byOwner.size<2) return "";                     // only meaningful when it's shared
+  const me=meId();
+  const eps=[...byOwner.values()];
+  const inSync = eps.every(e=>e===eps[0]);
+  const chips=[...byOwner.entries()]
+    .sort((a,b)=> a[0]===me?-1 : b[0]===me?1 : displayName(a[0]).localeCompare(displayName(b[0])))
+    .map(([o,ep])=>`<span class="syncchip" title="${esc(o===me?"You":displayName(o))} — episode ${ep}">${avatarHTML(o,"sm")}<span class="syncnm">${esc(o===me?"You":displayName(o))}</span><span class="syncep">Ep ${ep}</span></span>`)
+    .join("");
+  return `<div class="syncrow" title="Where each of you is">${chips}${inSync?`<span class="syncok">in sync ✓</span>`:""}</div>`;
+}
 function groupRating(aniId){
   const rs=watchersOf(aniId).map(s=>s.rating).filter(r=>r>0);
   if(!rs.length) return null;
@@ -1160,8 +1187,7 @@ function showCard(s){
   const streaming = (a.streaming&&a.streaming.length)
     ? `<div class="watch">${a.streaming.map(x=>`<a class="watchpill" href="${esc(x.url)}" target="_blank" rel="noopener" title="Watch on ${esc(x.site)}">${esc(streamLabel(x.site))}</a>`).join("")}</div>` : "";
   // co-watchers (other people tracking the same show)
-  const coOwners=[...new Set(watchersOf(s.anilistId).map(ownerOf))].filter(o=>o!==ownerOf(s));
-  const social = coOwners.length ? `<div class="social" title="Also tracking: ${esc(coOwners.map(displayName).join(', '))}">${coOwners.slice(0,4).map(o=>avatarHTML(o,'sm')).join('')}<span class="socount">${coOwners.length} also watching</span></div>` : "";
+  const social = syncRow(s);
   // ratings
   const gr=groupRating(s.anilistId);
   const ratingRow=`<div class="ratingrow">${stars(s.rating||0,!ro,s.id)}${gr?`<span class="grp" title="Group average from ${gr.n} rating${gr.n>1?'s':''}">avg ★ ${gr.avg.toFixed(1)}</span>`:""}</div>`;
@@ -1823,6 +1849,15 @@ $("#addMineBtn").onclick=async()=>{ const id=editingKey; const pm=previewMedia; 
   if(pm){ previewMedia=null; await addShow(pm); }           // adding from a search preview
   else { await addFromShow(id); } };                        // copying someone else's show
 $("#refreshBtn").onclick=()=>{ refreshLive(); toast("Refreshing schedules…"); };
+// 🎲 Pick a random "Plan to watch" title to settle the "what should we watch?" debate.
+function pickForUs(){
+  const pool=showsForUid(meId()).filter(s=>s.status==="Plan to watch");
+  if(!pool.length){ toast("No “Plan to watch” shows to pick from — add some first!"); return; }
+  const pick=pool[Math.floor(Math.random()*pool.length)];
+  toast("🎲 How about… "+pick.title);
+  openEdit(pick.id);
+}
+$("#pickBtn").onclick=pickForUs;
 $("#viewSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return;
   [...$("#viewSeg").children].forEach(x=>x.classList.remove("active")); b.classList.add("active"); currentView=b.dataset.view; render(); });
 $("#statusFilter").onchange=e=>{ statusFilter=e.target.value; render(); };

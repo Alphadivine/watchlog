@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10 — Watch-sync & "Pick for us"
+- **Watch-sync indicator:** on a show more than one person tracks, each card now
+  shows where everyone is (e.g. "You · Ep 5 · Demon · Ep 4"), with an
+  "in sync ✓" when your episodes match. Replaces the old "N also watching" line.
+- **"Pick for us" button:** a 🎲 button in the toolbar picks a random title from
+  your Plan to watch when you can't decide, and opens its details.
+
 ## 2026-10 — Installable app, season grouping, Dropped section, previews & more
 - **Installable app (PWA):** added a web manifest, icons, and an offline service
   worker, so WatchLog installs on phones/desktop with its own icon, opens
