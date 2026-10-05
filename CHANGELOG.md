@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10 — New logo
+- New app logo: a speech bubble with a play button (a nod to English dubs),
+  replacing the plain play triangle. Updated the header badge, favicon, and the
+  home-screen/PWA icons. Service worker cache bumped to v2 so the new icons
+  refresh.
+
 ## 2026-10 — Browse by release day
 - **Browse by release day:** the ＋ Add anime panel now has Sun–Sat chips. Tap a
   day to see every anime that airs that weekday in your timezone (via AniList's
