@@ -220,9 +220,12 @@
   .countdown:not(.done):not(.dubcd){filter:drop-shadow(0 0 8px rgba(255,194,92,.28))}
   .countdown.soon{filter:drop-shadow(0 0 8px rgba(255,92,157,.32))}
   /* Hero (Next up) */
-  .hero{border-radius:var(--radius);overflow:hidden;margin-bottom:20px;background-size:cover;background-position:center 30%;
+  .hero{border-radius:var(--radius);overflow:hidden;margin-bottom:20px;background:var(--bg2);
     border:1px solid var(--line);box-shadow:0 16px 44px rgba(0,0,0,.45), 0 0 30px rgba(139,108,255,.14);position:relative;animation:cardIn .5s ease both}
-  .hero-inner{padding:22px 26px}
+  .hero-img{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center 30%}
+  .hero-img.hero-img-cv{filter:blur(16px) saturate(1.12) brightness(.72);transform:scale(1.18)}  /* blurred backdrop when no real banner */
+  .hero-shade{position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(11,11,24,.94),rgba(11,11,24,.55) 60%,rgba(11,11,24,.3))}
+  .hero-inner{position:relative;z-index:2;padding:22px 26px}
   .hero-kicker{font-size:12px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent2);margin-bottom:8px}
   .hero-title{font-size:26px;font-weight:900;line-height:1.1;margin-bottom:6px;text-shadow:0 2px 20px rgba(0,0,0,.6);max-width:70%}
   .hero-sub{font-size:14px;color:var(--muted);margin-bottom:12px}
@@ -1206,10 +1209,15 @@ function nextUp(){
 function heroHTML(){
   const n=nextUp(); if(!n) return "";
   const f=fmtCountdown(n.a.at);
-  const bg=n.a.banner||hiRes(n.s.cover)||"";
+  const banner=n.a.banner||"";              // wide promo image (crisp) if AniList has one
+  const cover=hiRes(n.s.cover)||"";          // else fall back to cover art…
+  const img=banner||cover;
+  const isCover=!banner && !!cover;          // …shown as a blurred backdrop so it reads clean, not blurry
   const airingToday=isSameLocalDay(n.a.at);
   const dub=dubLatest(n.s.anilistId);
-  return `<div class="hero" ${bg?`style="background-image:linear-gradient(90deg,rgba(11,11,24,.94),rgba(11,11,24,.55) 60%,rgba(11,11,24,.3)),url('${esc(bg)}')"`:""}>
+  return `<div class="hero">
+    ${img?`<div class="hero-img ${isCover?"hero-img-cv":""}" style="background-image:url('${esc(img)}')"></div>`:""}
+    <div class="hero-shade"></div>
     <div class="hero-inner">
       <div class="hero-kicker">${airingToday?"🔴 Airing today · Next up":"⏭️ Next up"}</div>
       <div class="hero-title">${esc(n.s.title)}</div>

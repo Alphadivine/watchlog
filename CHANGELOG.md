@@ -25,6 +25,9 @@
 - **Sharper cover art:** cards now display AniList's larger cover image
   (~460px) instead of the stored low-res "small" (100px) — crisp on every
   screen, with no refetch or data change.
+- **Cleaner Next-up banner:** when a show has no wide AniList banner image, the
+  hero now shows its cover as a soft blurred backdrop (instead of stretching the
+  small cover and looking blurry). Shows that have a real banner stay crisp.
 - **Fix:** adding an anime no longer briefly shows two cards (a race between the
   optimistic add and the live-sync refresh).
 
