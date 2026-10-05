@@ -119,6 +119,16 @@
   .daychip{background:var(--card2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:700;cursor:pointer;transition:all .15s}
   .daychip:hover{color:var(--text);border-color:var(--accent)}
   .daychip.active{background:var(--accent);color:#0b0b18;border-color:transparent}
+  /* Anime-character avatar picker */
+  .charpick input{width:100%;box-sizing:border-box;background:#0f0f22;border:1px solid #30305a;color:var(--text);border-radius:9px;padding:9px 11px;font-size:13.5px}
+  .char-myshows{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .charshow{background:var(--card2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 10px;font-size:11.5px;cursor:pointer;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .charshow:hover{color:var(--text);border-color:var(--accent)}
+  .char-showrow{display:flex;gap:6px;flex-wrap:wrap}
+  .char-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:8px;max-height:230px;overflow:auto;padding:2px 2px 4px}
+  .charopt{padding:0;border:2px solid transparent;border-radius:50%;background:none;cursor:pointer}
+  .charopt span{display:block;width:100%;aspect-ratio:1;border-radius:50%;background:#0c0d1e center/cover no-repeat;border:1px solid var(--line)}
+  .charopt:hover{border-color:var(--accent)}
   /* Season grouping */
   .series-grp{grid-column:1/-1;width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0}
   .series-grp[open]{box-shadow:var(--glow)}
@@ -624,6 +634,12 @@
       <div class="avgrid" id="avatarGrid"></div>
       <label class="fld">…or paste an image URL</label>
       <input type="text" id="profUrl" placeholder="https://…/me.png" autocomplete="off" />
+      <label class="fld">🎭 …or use an anime character</label>
+      <div class="charpick">
+        <input type="text" id="charSearch" placeholder="Search an anime to see its characters…" autocomplete="off" />
+        <div class="char-myshows" id="charMyShows"></div>
+        <div class="char-results" id="charResults"><div class="hint" style="font-size:12px;margin:0">Search a show above, or tap one of yours, then pick a character.</div></div>
+      </div>
       <label class="fld">Accent color</label>
       <div class="colgrid" id="colorGrid"></div>
       <hr class="prof-sep" />
@@ -684,8 +700,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.05c";
+const APP_VERSION = "2026.10.05d";
 const WHATS_NEW = [
+  { v:"2026.10.05d", title:"Anime character avatars + new logo", items:[
+    "🎭 <b>Anime character avatars</b> — in your profile, search a show (or tap one of yours) and pick a character's portrait as your avatar, pulled from AniList.",
+    "💬 <b>New logo</b> — a speech bubble with a play button, a nod to dubs.",
+  ]},
   { v:"2026.10.05c", title:"Browse by release day", items:[
     "📅 <b>Browse by release day</b> — in <b>＋ Add anime</b>, tap a weekday (Sun–Sat) to see every anime that airs that day in your timezone. Great for filling an empty slot with something new.",
   ]},
@@ -719,6 +739,10 @@ async function aniQuery(query, variables){
 const SEARCH_Q = `query($s:String,$g:[String]){Page(perPage:16){media(search:$s,genre_in:$g,type:ANIME,sort:[SEARCH_MATCH,POPULARITY_DESC],isAdult:false){
   id title{romaji english} coverImage{medium} format status episodes seasonYear
   nextAiringEpisode{airingAt timeUntilAiring episode} siteUrl}}}`;
+// A show's cast — for picking a character portrait as your avatar.
+const CHARS_Q = `query($id:Int){Media(id:$id,type:ANIME){characters(sort:[ROLE,FAVOURITES_DESC],perPage:36){nodes{id name{full} image{large medium}}}}}`;
+// Quick anime search (title only) for the character-avatar picker.
+const CHAR_SHOW_Q = `query($s:String){Page(perPage:12){media(search:$s,type:ANIME,sort:[SEARCH_MATCH,POPULARITY_DESC],isAdult:false){id title{romaji english} coverImage{medium}}}}`;
 const BROWSE_Q = `query($g:[String]){Page(perPage:24){media(genre_in:$g,type:ANIME,sort:POPULARITY_DESC,isAdult:false){
   id title{romaji english} coverImage{medium} format status episodes seasonYear
   nextAiringEpisode{airingAt timeUntilAiring episode} siteUrl}}}`;
@@ -1963,8 +1987,54 @@ function openProfile(){
   $("#logoutBtn").style.display = loggedIn() ? "inline-flex":"none";
   $("#pwRow").style.display = (usingCloud && loggedIn()) ? "block":"none";   // password only in cloud mode
   $("#newPw").value=""; $("#pwMsg").textContent="";
+  $("#charSearch").value=""; renderCharMyShows();
+  $("#charResults").innerHTML=`<div class="hint" style="font-size:12px;margin:0">Search a show above, or tap one of yours, then pick a character.</div>`;
   $("#profileOverlay").classList.add("show"); setTimeout(()=>$("#profName").focus(),50);
 }
+/* ---- Anime-character avatar picker (browse by anime → pick a character) ---- */
+function renderCharMyShows(){
+  const box=$("#charMyShows"); if(!box) return;
+  const seen=new Set(), uniq=[];
+  showsForUid(meId()).forEach(s=>{ const k=String(s.anilistId); if(!seen.has(k)){ seen.add(k); uniq.push(s); } });
+  box.innerHTML = uniq.slice(0,12).map(s=>`<button type="button" class="charshow" data-ani="${esc(String(s.anilistId))}" data-t="${esc(s.title)}">${esc(s.title)}</button>`).join("");
+}
+let charSearchTimer=null;
+function charSearchShows(){
+  const q=$("#charSearch").value.trim(); clearTimeout(charSearchTimer);
+  if(q.length<2){ return; }
+  charSearchTimer=setTimeout(async()=>{
+    const box=$("#charResults"); box.innerHTML=`<div style="text-align:center;padding:14px"><span class="spinner"></span></div>`;
+    try{
+      const d=await aniQuery(CHAR_SHOW_Q,{s:q}); const media=d.Page.media||[];
+      if(!media.length){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">No shows found.</div>`; return; }
+      box.innerHTML=`<div class="hint" style="font-size:11px;margin:0 0 6px">Pick a show:</div><div class="char-showrow">`+
+        media.map(m=>{ const t=m.title.english||m.title.romaji; return `<button type="button" class="charshow" data-ani="${m.id}" data-t="${esc(t)}">${esc(t)}</button>`; }).join("")+`</div>`;
+    }catch(e){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">Search failed: ${esc(e.message)}</div>`; }
+  },350);
+}
+async function loadCast(aniId, title){
+  const box=$("#charResults");
+  box.innerHTML=`<div style="text-align:center;padding:14px"><span class="spinner"></span><div class="hint" style="font-size:12px;margin-top:6px">Loading ${esc(title||"cast")}…</div></div>`;
+  try{
+    const d=await aniQuery(CHARS_Q,{id:Number(aniId)});
+    const nodes=(((d.Media||{}).characters||{}).nodes||[]).filter(c=>c.image&&(c.image.large||c.image.medium));
+    if(!nodes.length){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">No character art for this show. Try another.</div>`; return; }
+    box.innerHTML=`<div class="hint" style="font-size:11px;margin:0 0 6px">${esc(title||"Characters")} — tap a character:</div>
+      <div class="char-grid">`+nodes.map(c=>{ const img=c.image.large||c.image.medium;
+        return `<button type="button" class="charopt" data-img="${esc(img)}" title="${esc(c.name.full)}"><span style="background-image:url('${esc(img)}')"></span></button>`; }).join("")+`</div>`;
+  }catch(e){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">Couldn't load characters: ${esc(e.message)}</div>`; }
+}
+function pickCharAvatar(img){
+  $("#profUrl").value=img;     // route through the existing image-URL avatar path
+  pickAvatar="🐱"; buildAvatarGrid(); updateProfPreview();
+  toast("Avatar set — hit Save profile to keep it");
+}
+$("#charSearch").addEventListener("input",charSearchShows);
+$("#charMyShows").addEventListener("click",e=>{ const b=e.target.closest(".charshow"); if(b) loadCast(b.dataset.ani,b.dataset.t); });
+$("#charResults").addEventListener("click",e=>{
+  const show=e.target.closest(".charshow"); if(show){ loadCast(show.dataset.ani,show.dataset.t); return; }
+  const opt=e.target.closest(".charopt"); if(opt) pickCharAvatar(opt.dataset.img);
+});
 // Download the current user's list as a JSON backup.
 function doExport(){
   const mine=showsForUid(meId()).map(s=>{

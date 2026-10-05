@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10 — Anime character avatars
+- **Anime character avatars:** in your profile, under the avatar options, search
+  an anime (or tap one of your tracked shows) to load its cast, then tap a
+  character to use their portrait as your avatar — Crunchyroll-style, with images
+  pulled from AniList. Still works alongside the emoji presets and custom image
+  URL.
+
 ## 2026-10 — New logo
 - New app logo: a speech bubble with a play button (a nod to English dubs),
   replacing the plain play triangle. Updated the header badge, favicon, and the
