@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10 — Unique counts & smarter season grouping
+- **Count = unique anime:** the number next to each name now counts unique shows
+  (all seasons of one anime count once), not every season separately.
+- **Groups differently-named seasons/arcs:** series grouping now also uses
+  AniList's prequel/sequel/side-story links, so arcs with distinct names (e.g.
+  all of Demon Slayer's — Entertainment District, Swordsmith Village, Hashira
+  Training, Infinity Castle…) collapse into one card. Title-matching and
+  AniList links are combined, so nothing that grouped before stops grouping.
+- **Manual "Series group" field** in Edit: type the same name on each part to
+  force-group anything the auto-detection misses.
+
+## 2026-10 — Fix: Add popup disrupted while adding
+- Fixed the Add-anime popup getting disrupted ("kicked out") while adding
+  several shows: each add triggered a full live-sync reload + AniList refresh +
+  board re-render, and that churn behind the open popup caused jank, focus loss,
+  and stray taps. Now the board re-render is **deferred while the Add/Edit dialog
+  is open** (and applied the moment it closes), rapid refreshes are **coalesced**
+  into one, and click-outside-to-close only fires when the press actually starts
+  on the backdrop (so a reflow can't close it).
+
 ## 2026-10 — "Coming soon" section
 - Split the weekly view's catch-all "No upcoming episodes" into two: **💤 On
   break** (between seasons / caught up) and **🔜 Coming soon** (shows that

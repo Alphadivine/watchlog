@@ -564,6 +564,8 @@
         </select>
         <label class="fld">Delay <span style="color:var(--faint);font-weight:400">(shared — clears itself once the episode airs)</span></label>
         <button type="button" class="btn ghost sm" id="editDelay" style="width:100%;justify-content:center">🚩 Mark this week's episode delayed</button>
+        <label class="fld">🗂️ Series group <span style="color:var(--faint);font-weight:400">(optional — type the same name on each part to group them)</span></label>
+        <input type="text" id="editSeries" placeholder="e.g. Demon Slayer" autocomplete="off" />
         <label class="fld">Notes</label>
         <textarea id="editNotes" rows="2" placeholder="e.g. watching with the group Fridays, up to the culling game arc…"></textarea>
       </div>
@@ -706,6 +708,7 @@ const WHATS_NEW = [
     "🎭 <b>Anime character avatars</b> — in your profile, search a show (or tap one of yours) and pick a character's portrait as your avatar, pulled from AniList.",
     "💬 <b>New logo</b> — a speech bubble with a play button, a nod to dubs.",
     "🔜 <b>'Coming soon' section</b> — shows that haven't aired yet are now split out from the 'On break' ones in the weekly view.",
+    "🔢 <b>Smarter counts & grouping</b> — the number by your name now counts unique anime (seasons count once), and differently-named seasons/arcs (like Demon Slayer's) group together automatically via AniList links — plus a manual 'Series group' field in Edit for anything it misses.",
   ]},
   { v:"2026.10.05c", title:"Browse by release day", items:[
     "📅 <b>Browse by release day</b> — in <b>＋ Add anime</b>, tap a weekday (Sun–Sat) to see every anime that airs that day in your timezone. Great for filling an empty slot with something new.",
@@ -755,7 +758,8 @@ const DETAILS_Q = `query($id:Int){Media(id:$id,type:ANIME){
 const GENRES = ["Action","Adventure","Comedy","Drama","Fantasy","Horror","Mahou Shoujo","Mecha","Music","Mystery","Psychological","Romance","Sci-Fi","Slice of Life","Sports","Supernatural","Thriller"];
 const REFRESH_Q = `query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){
   id status episodes bannerImage nextAiringEpisode{airingAt timeUntilAiring episode}
-  externalLinks{site url type} streamingEpisodes{title url site}}}}`;
+  externalLinks{site url type} streamingEpisodes{title url site}
+  relations{edges{relationType node{id type}}}}}}`;
 const TRENDING_Q = `query{Page(perPage:24){media(type:ANIME,status:RELEASING,sort:TRENDING_DESC,isAdult:false){
   id title{romaji english} coverImage{medium} format status episodes seasonYear
   nextAiringEpisode{airingAt timeUntilAiring episode} siteUrl}}}`;
@@ -851,6 +855,7 @@ let statusFilter = "all";
 let listFilter = "";
 let sortBy = "soonest";
 let editingId = null;
+let pendingView = false;   // a board re-render was deferred while a dialog was open
 /* ---------------- Identity / accounts ----------------
    Cloud mode: real Firebase email+password auth. Each account has a profile
    (name, avatar, color). Anyone can VIEW; you must log in to edit your list.
@@ -1133,12 +1138,57 @@ function seasonNum(title){
   if(r){ const map={II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10}; return map[r[1]]; }
   return 1;
 }
+/* Franchise clustering from AniList relations: shows linked by prequel/sequel/
+   side-story/parent edges are treated as one series, even when their titles differ
+   (e.g. Demon Slayer's named arcs). Built from REFRESH_Q's relations data.        */
+let franchise=new Map();   // anilistId(string) -> cluster root(string)
+function buildFranchise(){
+  const parent=new Map();
+  const find=x=>{ x=String(x); if(!parent.has(x)) parent.set(x,x);
+    let r=x; while(parent.get(r)!==r) r=parent.get(r);
+    while(parent.get(x)!==r){ const n=parent.get(x); parent.set(x,r); x=n; } return r; };
+  const union=(a,b)=>{ a=find(a); b=find(b); if(a!==b) parent.set(a,b); };
+  const ALLOW=new Set(["PREQUEL","SEQUEL","SIDE_STORY","PARENT"]);
+  const tracked=new Set(shows.map(s=>String(s.anilistId)));
+  tracked.forEach(id=>find(id));
+  // 1) union shows AniList links by prequel/sequel/side-story/parent
+  live.forEach((l,id)=>{
+    if(!tracked.has(String(id)) || !l.relations) return;
+    (l.relations.edges||[]).forEach(e=>{ if(e.node && e.node.type==="ANIME" && ALLOW.has(e.relationType)) union(id, e.node.id); });
+  });
+  // 2) also union shows whose titles normalise to the same base (My Hero Academia,
+  //    …Season 2, …) so title grouping and relation grouping combine, not conflict
+  const byTitle=new Map();
+  shows.forEach(s=>{ const tk=seriesKey(s.title); if(!byTitle.has(tk)) byTitle.set(tk,[]); byTitle.get(tk).push(String(s.anilistId)); });
+  byTitle.forEach(ids=>{ for(let i=1;i<ids.length;i++) union(ids[0],ids[i]); });
+  const m=new Map(); tracked.forEach(id=>m.set(id, find(id))); franchise=m;
+}
+// The grouping key for a show: a manual "series" tag wins, then an AniList
+// franchise cluster, then the title-normalised key.
+function seriesKeyOf(s){
+  const man=(s.series!=null?String(s.series):"").trim();
+  if(man) return "m:"+man.toLowerCase();
+  const r=franchise.get(String(s.anilistId));
+  if(r!=null) return "f:"+r;
+  return "t:"+seriesKey(s.title);
+}
 function groupBySeries(list){
   const map=new Map();
-  list.forEach(s=>{ const k=seriesKey(s.title)||("__"+s.id); if(!map.has(k)) map.set(k,[]); map.get(k).push(s); });
+  list.forEach(s=>{ const k=seriesKeyOf(s)||("__"+s.id); if(!map.has(k)) map.set(k,[]); map.get(k).push(s); });
   return [...map.values()];
 }
-// Render a list, collapsing multi-season series into one expandable card.
+// A friendly name for a grouped series: manual tag, else the common title prefix,
+// else the representative's base title.
+function seriesLabel(members){
+  const tagged=members.find(s=>s.series && String(s.series).trim());
+  if(tagged) return String(tagged.series).trim();
+  const titles=members.map(s=>s.title||"");
+  let lcp=titles[0]||"";
+  titles.forEach(t=>{ let i=0; while(i<lcp.length && i<t.length && lcp[i].toLowerCase()===t[i].toLowerCase()) i++; lcp=lcp.slice(0,i); });
+  lcp=lcp.replace(/[\s:：–—\-]+$/,"").trim();
+  return lcp.length>=6 ? lcp : seriesBase(members[members.length-1].title);
+}
+// Render a list, collapsing multi-season/arc series into one expandable card.
 function renderGrouped(list, renderOne){
   return groupBySeries(list).map(g=>{
     if(g.length<2) return renderOne(g[0]);
@@ -1148,8 +1198,8 @@ function renderGrouped(list, renderOne){
     return `<details class="series-grp">
       <summary class="series-sum">
         <span class="series-cv" style="${cover?`background-image:url('${esc(cover)}')`:""}"></span>
-        <span class="series-info"><span class="series-ttl">${esc(seriesBase(rep.title))}</span>
-          <span class="series-meta">${seasons.length} seasons</span></span>
+        <span class="series-info"><span class="series-ttl">${esc(seriesLabel(seasons))}</span>
+          <span class="series-meta">${seasons.length} parts</span></span>
       </summary>
       <div class="series-inner">${seasons.map(renderOne).join("")}</div>
     </details>`;
@@ -1417,7 +1467,9 @@ function renderProfiles(){
   const bar=$("#profilesBar"); if(!bar) return;
   const owners=allOwnerIds();
   if(!owners.length){ bar.innerHTML=""; return; }
-  const counts={}; shows.forEach(s=>{ const o=ownerOf(s); if(o!=null) counts[o]=(counts[o]||0)+1; });
+  // Count unique anime per person (seasons of the same show count once).
+  const counts={}, seenSeries={};
+  shows.forEach(s=>{ const o=ownerOf(s); if(o==null) return; const sk=o+"|"+seriesKeyOf(s); if(seenSeries[sk]) return; seenSeries[sk]=1; counts[o]=(counts[o]||0)+1; });
   const me=meId();
   const active=viewingUid||me;
   const chips = owners.map(o=>{
@@ -1436,6 +1488,10 @@ function render(){
   applyAccent();
   renderProfiles();
   const rob=$("#roBanner"); if(rob){ const showBanner=ro&&loggedIn()&&viewingUid; rob.style.display = showBanner ? "flex":"none"; const rn=$("#roName"); if(rn&&showBanner) rn.textContent=displayName(viewingUid); }
+  // Don't rebuild the board behind an open Add/Edit dialog — the churn (e.g. while
+  // bulk-adding) causes jank, focus loss and stray taps. Defer until it closes.
+  if($("#addOverlay").classList.contains("show") || $("#editOverlay").classList.contains("show")){ pendingView=true; return; }
+  pendingView=false;
   const mine=ownerShows();
   const hero=$("#heroRoot"); if(hero) hero.innerHTML = mine.length ? heroHTML() : "";
   if(!mine.length){ $("#viewRoot").innerHTML=emptyState(); return; }
@@ -1461,9 +1517,13 @@ async function refreshLive(quiet){
   try{
     const data=await aniQuery(REFRESH_Q,{ids});
     (data.Page.media||[]).forEach(m=>live.set(m.id,m));
+    buildFranchise();      // recompute series clusters from the freshest relations
     render();
   }catch(e){ console.warn("live refresh failed",e); if(!quiet) toast("Couldn't reach AniList — check connection"); }
 }
+// Coalesce bursts of refreshes (e.g. bulk-adding) into a single AniList call.
+let refreshTimer=null;
+function refreshLiveSoon(quiet){ clearTimeout(refreshTimer); refreshTimer=setTimeout(()=>refreshLive(quiet), 1500); }
 // When a countdown has elapsed, AniList has usually updated the schedule (a delay
 // pushes the date out, or the episode aired and it rolls to the next). Re-sync so
 // the app reflects reality instead of sitting on a stale "just aired".
@@ -1486,7 +1546,7 @@ async function reload(){
     shows=(await store.list()).map(normalize);
     if(usingCloud && myUid) await claimLegacy();
     if(viewingUid==null) viewingUid = loggedIn() ? meId() : (allOwnerIds()[0]||null);
-    render(); refreshLive();
+    render(); refreshLiveSoon();
   }catch(e){ console.error(e); toast("Load error: "+e.message); }
 }
 
@@ -1572,7 +1632,7 @@ async function addShow(m){
     const saved=await store.add(row);
     // The live snapshot (reload) may have already added this row — don't double it.
     if(!shows.some(x=>x.id===saved.id)) shows.push(normalize(saved));
-    render(); refreshLive();
+    render(); refreshLiveSoon();
     toast("Added “"+m.title+"”");
   }catch(e){ toast("Add failed: "+e.message); }
 }
@@ -1686,6 +1746,7 @@ function openEdit(id){
   editDelayOn = (s.delay_ep!=null && Number(s.delay_ep)===editDelayEp);
   updateDelayBtn();
   $("#editNotes").value=s.notes||"";
+  $("#editSeries").value=s.series||"";
   fillDetails(s);
   $("#editOverlay").classList.add("show");
 }
@@ -1701,7 +1762,8 @@ async function saveEdit(){
   const dubDayVal=$("#editDubDay").value;
   const newDub=(dubOut===""?null:Number(dubOut)||0);
   const prevEp=(dubLatest(s.anilistId)||{}).ep || 0;
-  const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating, dub_ep:newDub, dub_day:(dubDayVal===""?null:Number(dubDayVal)), delay_ep:(editDelayOn && editDelayEp!=null)?editDelayEp:null};
+  const seriesVal=$("#editSeries").value.trim();
+  const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating, series:(seriesVal||null), dub_ep:newDub, dub_day:(dubDayVal===""?null:Number(dubDayVal)), delay_ep:(editDelayOn && editDelayEp!=null)?editDelayEp:null};
   // If a newer dub episode was entered by hand, stamp today so the day can be learned.
   if(newDub!=null && newDub>prevEp) patch.dub_date=new Date().toISOString().slice(0,10);
   Object.assign(s,patch); render();
@@ -1843,7 +1905,7 @@ async function doImport(){
     const payload = usingCloud ? rows : rows.map(r=>({...r,anilistId:r.anilist_id,owner:"me"}));
     const saved=await store.addMany(payload);
     saved.forEach(r=>{ if(!shows.some(x=>x.id===r.id)) shows.push(normalize(r)); });
-    render(); refreshLive();
+    render(); refreshLiveSoon();
     st.textContent=`✅ Imported ${saved.length} show${saved.length!==1?"s":""}!`;
     toast("Imported "+saved.length+" shows");
     setTimeout(()=>$("#importOverlay").classList.remove("show"),1300);
@@ -1877,7 +1939,7 @@ $("#whatsNewOverlay").addEventListener("click",e=>{ if(e.target===$("#whatsNewOv
 $("#importSrc").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; importSrc=b.dataset.src; syncImportSeg(); $("#importStatus").textContent=""; });
 $("#importGo").onclick=doImport;
 $("#importUser").addEventListener("keydown",e=>{ if(e.key==="Enter") doImport(); });
-$("#closeAdd").onclick=()=>$("#addOverlay").classList.remove("show");
+$("#closeAdd").onclick=()=>closeOverlay($("#addOverlay"));
 $("#trendingBtn").onclick=loadTrending;
 $("#searchInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ clearTimeout(searchTimer); doSearch(); } });
 $("#searchInput").addEventListener("input",()=>{
@@ -1888,13 +1950,13 @@ $("#searchInput").addEventListener("input",()=>{
   searchTimer=setTimeout(doSearch,320); // debounce so it searches as you type
 });
 $("#genreSel").onchange=doSearch;
-$("#closeEdit2").onclick=()=>$("#editOverlay").classList.remove("show");
+$("#closeEdit2").onclick=()=>closeOverlay($("#editOverlay"));
 $("#results").addEventListener("click",e=>{ const el=e.target.closest(".result"); if(!el) return;
   let m; try{ m=JSON.parse(el.dataset.m); }catch(err){ console.error("Couldn't parse result:",err,el.dataset.m); toast("Couldn't read that title — please try again"); return; }
   if(e.target.closest(".rinfo")){ openPreview(m); return; }   // ⓘ → read description without adding
   if(el.classList.contains("added")) return;
   addShow(m); el.classList.add("added"); el.querySelector(".rm").innerHTML+=" · ✔ added"; });
-$("#closeEdit").onclick=()=>$("#editOverlay").classList.remove("show");
+$("#closeEdit").onclick=()=>closeOverlay($("#editOverlay"));
 $("#saveEdit").onclick=saveEdit;
 $("#removeShow").onclick=removeShow;
 $("#editDelay").onclick=()=>{ if(editDelayEp==null) return; editDelayOn=!editDelayOn; updateDelayBtn(); };
@@ -1929,7 +1991,14 @@ document.addEventListener("click",e=>{
   else if(act==="addmine") addFromShow(id);
   else if(act==="edit") openEdit(id); else if(act==="cal") addToCalendar(id);
 });
-[$("#addOverlay"),$("#editOverlay")].forEach(o=>o.addEventListener("click",e=>{ if(e.target===o) o.classList.remove("show"); }));
+// Close on backdrop click only when the press STARTED on the backdrop — so a drag
+// or a reflow (e.g. a result card shrinking after you add it) can't close the popup.
+function closeOverlay(o){ o.classList.remove("show"); if(pendingView) render(); }
+[$("#addOverlay"),$("#editOverlay")].forEach(o=>{
+  let downOnBackdrop=false;
+  o.addEventListener("mousedown",e=>{ downOnBackdrop=(e.target===o); });
+  o.addEventListener("click",e=>{ if(e.target===o && downOnBackdrop) closeOverlay(o); });
+});
 // profile switching
 $("#profilesBar").addEventListener("click",e=>{
   const chip=e.target.closest(".profchip"); if(!chip) return;
@@ -2164,6 +2233,9 @@ function initSyncUI(){
   // periodic countdown tick + auto-resync on elapsed + hourly refresh + notifications
   setInterval(()=>{ if(currentView) render(); maybeAutoRefresh(); checkNotifications(); }, 60000);
   setInterval(()=>refreshLive(true), 60*60*1000);
+  // Safety net: once any dialog closes, apply a deferred board re-render. render()
+  // self-guards while a dialog is open, so this is a no-op until it's safe.
+  setInterval(()=>{ if(pendingView) render(); }, 1200);
   // Register the service worker so WatchLog installs as an app and loads offline.
   if("serviceWorker" in navigator && location.protocol==="https:"){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
   // Show "what's new" once per version — but never on top of first-run setup.
