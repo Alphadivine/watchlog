@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10 — Removed the "New this week" badge
+- Removed the 🆕 "New ep/New dub" badge. It couldn't reliably tell when a new
+  *dub* actually released — the sub version flagged sub airings (irrelevant for
+  dub watchers), and the dub version only knew when the shared counter was last
+  edited (so setup/migration edits looked like fresh releases). Clearer to drop
+  it than to show a misleading signal.
+
 ## 2026-10 — Watch-sync & "Pick for us"
 - **Watch-sync indicator:** on a show more than one person tracks, each card now
   shows where everyone is (e.g. "You · Ep 5 · Demon · Ep 4"), with an

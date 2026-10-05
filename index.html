@@ -112,8 +112,6 @@
   .finished-sec[open]>summary::before{transform:rotate(90deg)}
   .finished-sec>div{margin-top:4px;padding-bottom:6px}
   .dropped-sec>summary{color:var(--pink)}
-  .tag.newtag{background:var(--good);color:#06231a;font-weight:800;box-shadow:0 0 0 2px rgba(77,230,168,.22)}
-  .wknew{font-size:12px}
   .prof-sep{border:none;border-top:1px solid var(--line);margin:16px 0 4px}
   /* Season grouping */
   .series-grp{grid-column:1/-1;width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0}
@@ -686,7 +684,6 @@ const WHATS_NEW = [
     "🗂️ <b>Seasons group together</b> — same-show seasons now collapse into one expandable card to cut the clutter.",
     "✖ <b>Dropped section</b> — dropped shows tuck into their own collapsible section, like Finished.",
     "ⓘ <b>Preview before adding</b> — tap the ⓘ on any search result to read its description without adding it.",
-    "🆕 <b>'New this week' badge</b> — flags shows whose sub or dub just dropped.",
     "🖼️ <b>Sharper cover art</b> across all the cards.",
     "💾 <b>Backup</b> your list and 🔐 <b>change your password</b> from your profile.",
     "🔑 <b>Forgot password?</b> link added to the login screen.",
@@ -1071,23 +1068,6 @@ function weekSlot(s){
   return {kind:"break"};
 }
 
-// "New this week": a fresh sub episode aired, or a fresh dub was recorded, in the
-// last ~3 days. Returns "sub" | "dub" | null. Dub-first, since that's what matters here.
-const NEW_WINDOW = 3*864e5;
-function recentlyDropped(s){
-  if(s.status==="Finished"||s.status==="Dropped") return null;
-  const now=Date.now();
-  const ds=dubSchedule(s.anilistId);
-  if(ds && ds.lastDate){ const age=now-ds.lastDate.getTime(); if(age>=0 && age<NEW_WINDOW) return "dub"; }
-  const a=airInfo(s.anilistId);
-  if(a.cd==="upcoming" && a.at){
-    const lastAired=a.at-7*864e5;                 // previous weekly episode
-    if(lastAired<=now && now-lastAired<NEW_WINDOW) return "sub";
-  }
-  return null;
-}
-function newBadge(s){ const n=recentlyDropped(s); return n ? `<span class="tag newtag" title="New ${n==="dub"?"dub":"episode"} in the last few days">🆕 New ${n==="dub"?"dub":"ep"}</span>` : ""; }
-
 /* ---------------- Season grouping ----------------
    Collapse "same show, different season" into one series card. Detection is by
    title: strip trailing season/part/cour markers and roman numerals to a base
@@ -1120,12 +1100,11 @@ function renderGrouped(list, renderOne){
     const seasons=g.slice().sort((a,b)=>seasonNum(a.title)-seasonNum(b.title));
     const rep=seasons[seasons.length-1];
     const cover=rep.cover?hiRes(rep.cover):"";
-    const anyNew=seasons.some(s=>recentlyDropped(s));
     return `<details class="series-grp">
       <summary class="series-sum">
         <span class="series-cv" style="${cover?`background-image:url('${esc(cover)}')`:""}"></span>
         <span class="series-info"><span class="series-ttl">${esc(seriesBase(rep.title))}</span>
-          <span class="series-meta">${seasons.length} seasons${anyNew?` · <span class="tag newtag">🆕 new</span>`:""}</span></span>
+          <span class="series-meta">${seasons.length} seasons</span></span>
       </summary>
       <div class="series-inner">${seasons.map(renderOne).join("")}</div>
     </details>`;
@@ -1204,7 +1183,7 @@ function showCard(s){
     <div class="cover" ${cover}></div>
     <div class="body">
       <p class="title">${esc(s.title)}</p>
-      <div class="meta">${newBadge(s)}${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}${airedLbl?`<span class="tag">📺 ${airedLbl}</span>`:""}</div>
+      <div class="meta">${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}${airedLbl?`<span class="tag">📺 ${airedLbl}</span>`:""}</div>
       ${cd}
       ${streaming}
       ${social}
@@ -1282,7 +1261,7 @@ function weekCard(s){
     <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
     <div class="wcover" ${cover}></div>
     <div class="wbody">
-      <div class="wtitle">${recentlyDropped(s)?`<span class="wknew" title="New ${recentlyDropped(s)==="dub"?"dub":"episode"}">🆕</span> `:""}${esc(s.title)}</div>
+      <div class="wtitle">${esc(s.title)}</div>
       <div class="wmeta">${showTime?`<span class="wk-time">🕒 ${esc(a.time)}</span>`:""}${cd}</div>
       ${epLine?`<div class="wep">${epLine}</div>`:""}
     </div>

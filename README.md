@@ -22,7 +22,6 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 - **Season grouping** — same-show seasons collapse into one expandable card (each season stays separately tracked).
 - **What's new popup** — a ✨ button (and a once-per-version popup) summarizes new features.
 - **Preview before adding** — every search result has an ⓘ button to read the synopsis, genres and streaming links without adding it; add from the preview if it looks good.
-- **"New this week" cues** — a 🆕 badge flags shows whose sub or dub dropped in the last few days.
 - **Installable app (PWA)** — add to your home screen for a fullscreen, app-like experience that loads offline.
 - **Backup & password** — export your list to a JSON file, and change your password, from your profile.
 - **Delay-aware** — auto-re-syncs when a countdown elapses, shows an honest "expected…/checking" state, and offers a shared "delayed this week" flag that clears itself once the episode airs.
