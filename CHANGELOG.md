@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10 — Moved backend from Supabase to Firebase
+- **Backend migrated to Firebase** (Firestore + Firebase Auth), so WatchLog now
+  lives on the same platform as the other apps. The data layer (`CloudStore`),
+  auth, and live sync (`onSnapshot`) were swapped over; the rest of the app is
+  unchanged.
+- Row-level security is now **`Firebase/firestore.rules`** (public read,
+  owner-only write, plus a claim rule so migrated rows reattach on first login).
+- Config is now the Firebase web config in `CONFIG.FIREBASE` at the top of
+  `index.html` (apiKey/authDomain/projectId/…), instead of the Supabase URL/key.
+- **`migrate.html`** added: a one-time, in-browser tool that copies existing
+  lists (progress, ratings, dub days and all) from the old Supabase database into
+  Firestore, assigned to each person's new account. Delete it after migrating.
+- No feature or UI changes — same WatchLog, different backend.
+
 ## 2026-10 — Predicted dub release days
 - **Dub release-day tracking.** Dubs almost always drop on a fixed weekday
   each week, but no API publishes that day ahead of time — so WatchLog now

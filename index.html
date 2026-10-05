@@ -406,7 +406,7 @@
     <button class="btn" id="addBtn">＋ Add anime</button>
   </div>
   <div class="config-banner" id="configBanner" style="display:none">
-    <span>⚠️</span><span>Running in <b>solo / local mode</b> — your list is saved only on this device. Add your Supabase keys (see the setup guide) to share one live list with friends.</span>
+    <span>⚠️</span><span>Running in <b>solo / local mode</b> — your list is saved only on this device. Add your Firebase config (see the setup guide) to share one live list with friends.</span>
   </div>
 </header>
 
@@ -584,16 +584,26 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 /* ============================================================
-   CONFIG  —  fill these in to enable the SHARED synced list.
-   Leave blank to run solo (saved on this device only).
-   Steps to get them are in the setup guide.
+   CONFIG  —  fill in your Firebase web config to enable the
+   SHARED synced list. Get it from the Firebase console →
+   Project settings → Your apps → SDK setup and configuration →
+   "Config". Leave apiKey blank to run solo (saved on this
+   device only). Full steps are in the setup guide.
    ============================================================ */
 const CONFIG = {
-  SUPABASE_URL:  "https://pixwbjqmsbfxmbxtmlaj.supabase.co",
-  SUPABASE_ANON_KEY: "sb_publishable_sfRSTxSHMLqbxmHnp1ya0w_2UODdAtl",   // publishable key
+  FIREBASE: {
+    apiKey:            "AIzaSyCxkgpkOC-d2sdd4dLBsqh4p2x5BpqejyE",
+    authDomain:        "watchlog-d29d4.firebaseapp.com",
+    projectId:         "watchlog-d29d4",
+    storageBucket:     "watchlog-d29d4.firebasestorage.app",
+    messagingSenderId: "1033199729071",
+    appId:             "1:1033199729071:web:041b2b035573c639bc175a"
+  },
 };
 // Which shared board this page uses. Everyone on the same board sees the same list.
 // Add ?board=friends to the URL to use a different shared board.
@@ -636,8 +646,10 @@ const MAL_STATUS = {watching:"Watching",completed:"Finished",plan_to_watch:"Plan
 const JIKAN = "https://api.jikan.moe/v4";
 
 /* ---------------- Store abstraction ---------------- */
-let supa = null;
-const usingCloud = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY && window.supabase);
+let fb = null;   // {app, auth, db} once Firebase is initialised
+const usingCloud = !!(CONFIG.FIREBASE && CONFIG.FIREBASE.apiKey && window.firebase);
+// created_at may be a number (ms) or a legacy ISO string — coerce for sorting.
+function toMs(v){ if(v==null) return 0; if(typeof v==="number") return v; const t=Date.parse(v); return isNaN(t)?0:t; }
 
 const LocalStore = {
   key:"animeTracker:"+BOARD_ID,
@@ -652,50 +664,56 @@ const LocalStore = {
 };
 
 const CloudStore = {
+  // Firestore-backed shared store. Rows keep the same field shape as before
+  // (anilist_id, owner, user_id, …) so normalize() and claimLegacy() still work.
   async list(){
-    const {data,error} = await supa.from("shows").select("*").eq("board_id",BOARD_ID).order("created_at");
-    if(error) throw error; return data;
+    const snap = await fb.db.collection("shows").where("board_id","==",BOARD_ID).get();
+    const rows = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    rows.sort((a,b)=> toMs(a.created_at)-toMs(b.created_at));   // sort client-side (no composite index needed)
+    return rows;
   },
   async add(row){
-    const {data,error} = await supa.from("shows").insert({...row, board_id:BOARD_ID, user_id:myUid}).select().single();
-    if(error) throw error; return data;
+    const payload={...row, board_id:BOARD_ID, user_id:myUid, created_at:Date.now()};
+    const ref=await fb.db.collection("shows").add(payload);
+    return {id:ref.id, ...payload};
   },
   async addMany(rows){
-    const payload=rows.map(r=>({...r, board_id:BOARD_ID, user_id:myUid}));
-    const {data,error} = await supa.from("shows").insert(payload).select();
-    if(error) throw error; return data;
+    const col=fb.db.collection("shows"); const batch=fb.db.batch(); const out=[];
+    rows.forEach(r=>{ const ref=col.doc(); const payload={...r, board_id:BOARD_ID, user_id:myUid, created_at:Date.now()};
+      batch.set(ref,payload); out.push({id:ref.id, ...payload}); });
+    await batch.commit();
+    return out;
   },
-  async update(id,patch){ const {error}=await supa.from("shows").update(patch).eq("id",id); if(error) throw error; },
-  async remove(id){ const {error}=await supa.from("shows").delete().eq("id",id); if(error) throw error; },
+  async update(id,patch){ await fb.db.collection("shows").doc(id).update(patch); },
+  async remove(id){ await fb.db.collection("shows").doc(id).delete(); },
   async listProfiles(){
-    const {data,error}=await supa.from("profiles").select("*");
-    if(error){ console.warn("profiles load",error.message); return []; }
-    return data||[];
+    try{ const snap=await fb.db.collection("profiles").get();
+      return snap.docs.map(d=>({id:d.id, ...d.data()})); }
+    catch(e){ console.warn("profiles load",e.message); return []; }
   },
   async saveProfile(p){
-    const {data,error}=await supa.from("profiles").upsert({id:myUid,name:p.name,avatar:p.avatar,color:p.color,updated_at:new Date().toISOString()}).select().single();
-    if(error) throw error; return data;
+    const data={name:p.name,avatar:p.avatar,color:p.color,updated_at:Date.now()};
+    await fb.db.collection("profiles").doc(myUid).set(data,{merge:true});
+    return {id:myUid, ...data};
   },
   onChange(cb){
-    supa.channel("live-"+BOARD_ID)
-      .on("postgres_changes",{event:"*",schema:"public",table:"shows",filter:"board_id=eq."+BOARD_ID},()=>cb())
-      .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},()=>cb())
-      .subscribe();
+    // Live updates for both collections. Ignore the initial local snapshots' noise;
+    // reload() is cheap and idempotent.
+    fb.db.collection("shows").where("board_id","==",BOARD_ID).onSnapshot(()=>cb(), e=>console.warn("shows live",e.message));
+    fb.db.collection("profiles").onSnapshot(()=>cb(), e=>console.warn("profiles live",e.message));
   }
 };
 
-/* ---------------- Auth ---------------- */
+/* ---------------- Auth (Firebase email/password) ---------------- */
 async function authSignUp(email,pw){
-  const {data,error}=await supa.auth.signUp({email,password:pw});
-  if(error) throw error;
-  return data;
+  const cred=await fb.auth.createUserWithEmailAndPassword(email,pw);
+  return {session:true, user:cred.user};   // Firebase signs the user in immediately
 }
 async function authSignIn(email,pw){
-  const {data,error}=await supa.auth.signInWithPassword({email,password:pw});
-  if(error) throw error;
-  return data;
+  const cred=await fb.auth.signInWithEmailAndPassword(email,pw);
+  return {session:true, user:cred.user};
 }
-async function authSignOut(){ await supa.auth.signOut(); }
+async function authSignOut(){ await fb.auth.signOut(); }
 
 let store = LocalStore;
 
@@ -708,7 +726,7 @@ let listFilter = "";
 let sortBy = "soonest";
 let editingId = null;
 /* ---------------- Identity / accounts ----------------
-   Cloud mode: real Supabase email+password auth. Each account has a profile
+   Cloud mode: real Firebase email+password auth. Each account has a profile
    (name, avatar, color). Anyone can VIEW; you must log in to edit your list.
    Local mode: a single on-device profile, always editable, no login.        */
 const AVATARS = ["🐱","🦊","🐼","🐧","🦈","🐉","👾","🌸","⭐","🍥","🗡️","🎮","🔥","🌙","🦋","🍜","🐰","🤖"];
@@ -788,7 +806,7 @@ const $ = s=>document.querySelector(s);
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2200); }
 function statusClass(s){return {"Watching":"s-watching","Caught up":"s-caught","Plan to watch":"s-plan","Finished":"s-done","Dropped":"s-dropped"}[s]||"s-caught";}
 function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-// Surface the real Supabase error so save failures are diagnosable, not just "failed".
+// Surface the real backend error so save failures are diagnosable, not just "failed".
 function saveErr(e){ console.error("WatchLog save error:",e); return "Save failed — "+((e&&(e.message||e.details||e.hint))||"see console (F12)"); }
 
 function airInfo(anilistId){
@@ -1661,7 +1679,7 @@ async function submitAuth(){
   try{
     if(authMode==="signup"){
       const r=await authSignUp(email,pw);
-      if(!r.session){ $("#authErr").textContent="Account created! Check your email to confirm, then log in. (Or disable email confirmation in Supabase for instant access.)"; authMode="signin"; renderAuthMode(); btn.disabled=false; return; }
+      if(!r.session){ $("#authErr").textContent="Account created — now log in."; authMode="signin"; renderAuthMode(); btn.disabled=false; return; }
     } else {
       await authSignIn(email,pw);
     }
@@ -1741,22 +1759,20 @@ function initSyncUI(){
     $("#configBanner").style.display="none";
   }else{
     $("#syncTxt").textContent="Solo (local)";
-    if(!CONFIG.SUPABASE_URL) $("#configBanner").style.display="flex";
+    if(!(CONFIG.FIREBASE && CONFIG.FIREBASE.apiKey)) $("#configBanner").style.display="flex";
   }
   $("#boardLabel").textContent = BOARD_ID==="main" ? "to be continued…" : "board · "+BOARD_ID;
   const tz=$("#tzNote"); if(tz) tz.innerHTML="🌐 Air days &amp; times shown in your local timezone"+(TZ_NAME?" — <b>"+esc(TZ_NAME)+(TZ_ABBR?" ("+esc(TZ_ABBR)+")":"")+"</b>":"")+". Everyone sees their own zone, converted from UTC.";
 }
 (async function init(){
   if(usingCloud){
-    supa=window.supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
+    const app=window.firebase.initializeApp(CONFIG.FIREBASE);
+    fb={app, auth:window.firebase.auth(app), db:window.firebase.firestore(app)};
     store=CloudStore;
     store.onChange(()=>reload());
-    try{
-      const {data:{session}}=await supa.auth.getSession();
-      myUid = (session&&session.user&&session.user.id) || null;
-    }catch(e){ console.warn("auth session",e); }
-    supa.auth.onAuthStateChange(async (_evt,s)=>{
-      const newUid=(s&&s.user&&s.user.id)||null;
+    myUid = (fb.auth.currentUser && fb.auth.currentUser.uid) || null;
+    fb.auth.onAuthStateChanged(async (u)=>{
+      const newUid=(u&&u.uid)||null;
       if(newUid===myUid) return;      // no change
       myUid=newUid; myProfile=null; viewingUid=null;
       await reload();
