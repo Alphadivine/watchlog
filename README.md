@@ -16,7 +16,13 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 - **Accounts & profiles** — Firebase email/password login (with a **Forgot password?** reset-by-email link); pick a display name, avatar (emoji or image URL), and accent color.
 - **Personal lists, shared space** — everyone has their own list with their own progress/status/rating/notes, and can view anyone else's list read-only. Tap **＋ Add to mine** to copy a show you spotted on a friend's list.
 - **Community dub tracking + predicted release day** — no public API exposes English dub dates, so the group tracks the latest dubbed episode with a shared, bumpable counter. WatchLog then **learns each show's dub weekday** from when the counter is bumped (or you can set it by hand in Edit) and shows the next dub on its expected day in the weekly calendar, with a countdown.
-- **Finished section** — shows you mark Finished collapse into their own tucked-away section instead of cluttering your active lineup.
+- **Finished & Dropped sections** — shows you mark Finished or Dropped collapse into their own tucked-away sections instead of cluttering your active lineup.
+- **Season grouping** — same-show seasons collapse into one expandable card (each season stays separately tracked).
+- **What's new popup** — a ✨ button (and a once-per-version popup) summarizes new features.
+- **Preview before adding** — every search result has an ⓘ button to read the synopsis, genres and streaming links without adding it; add from the preview if it looks good.
+- **"New this week" cues** — a 🆕 badge flags shows whose sub or dub dropped in the last few days.
+- **Installable app (PWA)** — add to your home screen for a fullscreen, app-like experience that loads offline.
+- **Backup & password** — export your list to a JSON file, and change your password, from your profile.
 - **Delay-aware** — auto-re-syncs when a countdown elapses, shows an honest "expected…/checking" state, and offers a shared "delayed this week" flag that clears itself once the episode airs.
 - **Bulk import** from an AniList username (MyAnimeList via the AniList bridge — see notes).
 - **Genre browse, trending, search-as-you-type, filters & sorting.**

@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-title" content="WatchLog" />
 <title>WatchLog · Anime Tracker</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b6cff'/%3E%3Cstop offset='1' stop-color='%2322e0c6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='6' y='6' width='88' height='88' rx='22' fill='url(%23g)'/%3E%3Cpath d='M40 32 L70 50 L40 68 Z' fill='white'/%3E%3C/svg%3E" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icon-192.png" />
 <style>
   :root{
     --bg:#0b0b18; --bg2:#141433; --card:rgba(34,34,72,.55); --card2:rgba(46,46,92,.6);
@@ -109,6 +111,29 @@
   .finished-sec>summary::before{content:"▸";display:inline-block;transition:transform .2s}
   .finished-sec[open]>summary::before{transform:rotate(90deg)}
   .finished-sec>div{margin-top:4px;padding-bottom:6px}
+  .dropped-sec>summary{color:var(--pink)}
+  .tag.newtag{background:var(--good);color:#06231a;font-weight:800;box-shadow:0 0 0 2px rgba(77,230,168,.22)}
+  .wknew{font-size:12px}
+  .prof-sep{border:none;border-top:1px solid var(--line);margin:16px 0 4px}
+  /* Season grouping */
+  .series-grp{grid-column:1/-1;width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0}
+  .series-grp[open]{box-shadow:var(--glow)}
+  .series-sum{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 12px}
+  .series-sum::-webkit-details-marker{display:none}
+  .series-cv{width:42px;height:58px;flex:0 0 auto;border-radius:8px;background:#0c0d1e center/cover no-repeat;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+  .series-info{flex:1;min-width:0}
+  .series-ttl{display:block;font-weight:800;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .series-meta{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+  .series-sum::after{content:"▸";color:var(--faint);transition:transform .2s;flex:0 0 auto}
+  .series-grp[open] .series-sum::after{transform:rotate(90deg)}
+  .series-inner{display:flex;flex-direction:column;gap:10px;padding:0 10px 12px}
+  .series-inner .wcard,.series-inner .show{width:100%}
+  /* What's new */
+  .wn-block{margin-bottom:6px}
+  .wn-h{font-weight:800;font-size:14px;color:var(--accent2);margin-bottom:8px}
+  .wn-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+  .wn-list li{font-size:13.5px;line-height:1.45;padding-left:4px;color:var(--text)}
+  .wn-list li b{font-weight:700}
   .wk-cd.dubcd,.countdown.dubcd{color:#c9bcff;filter:none}
   .countdown.dubcd .est,.wk-cd.dubcd .est{font-size:10px;opacity:.7;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
   .dub-legend{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--faint);margin:12px 2px 2px;line-height:1.4}
@@ -177,6 +202,10 @@
   .result .rt{font-weight:700;font-size:14px;margin-bottom:3px}
   .result .rm{font-size:11px;color:var(--muted)}
   .result.added{opacity:.45;pointer-events:none}
+  .result .rbody{flex:1;min-width:0}
+  .rinfo{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--card2);color:var(--muted);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:color .15s,border-color .15s}
+  .rinfo:hover{color:var(--text);border-color:var(--accent)}
+  .result.added .rinfo{pointer-events:auto}
   .spinner{width:20px;height:20px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;display:inline-block}
   @keyframes spin{to{transform:rotate(360deg)}}
   .hint{font-size:12px;color:var(--faint);margin-top:8px}
@@ -436,6 +465,7 @@
     <div class="grow"></div>
     <button class="btn ghost sm" id="importBtn" title="Import your list from AniList or MyAnimeList">⬇️ Import</button>
     <button class="btn ghost sm" id="notifyBtn" title="Get notified before episodes air">🔔 Notify</button>
+    <button class="btn ghost sm" id="whatsNewBtn" title="What's new">✨</button>
     <button class="btn ghost sm" id="themeBtn" title="Toggle light / dark">☀️</button>
     <button class="btn ghost sm" id="refreshBtn" title="Refresh schedules from AniList">🔄 Refresh</button>
   </div>
@@ -575,11 +605,30 @@
       <input type="text" id="profUrl" placeholder="https://…/me.png" autocomplete="off" />
       <label class="fld">Accent color</label>
       <div class="colgrid" id="colorGrid"></div>
+      <hr class="prof-sep" />
+      <div id="pwRow" style="display:none">
+        <label class="fld">🔐 Change password</label>
+        <div style="display:flex;gap:8px">
+          <input type="password" id="newPw" placeholder="New password (6+ chars)" autocomplete="new-password" style="flex:1" />
+          <button class="btn ghost sm" id="changePwBtn" type="button">Update</button>
+        </div>
+        <div id="pwMsg" style="font-size:12px;margin-top:5px;min-height:14px"></div>
+      </div>
+      <label class="fld">💾 Backup</label>
+      <button class="btn ghost sm" id="exportBtn" type="button" style="width:100%;justify-content:center">⬇️ Export my list (.json)</button>
     </div>
     <div class="modal-foot">
       <button class="btn ghost" id="logoutBtn" style="background:rgba(255,92,138,.14);color:var(--pink);border-color:transparent;margin-right:auto">Log out</button>
       <button class="btn" id="saveProfile">Save profile</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="whatsNewOverlay">
+  <div class="modal" style="max-width:470px">
+    <h3>✨ What's new</h3>
+    <div class="content" id="whatsNewBody"></div>
+    <div class="modal-foot"><button class="btn" id="whatsNewClose" style="margin-left:auto">Got it 🎉</button></div>
   </div>
 </div>
 
@@ -609,6 +658,25 @@ const CONFIG = {
 // Which shared board this page uses. Everyone on the same board sees the same list.
 // Add ?board=friends to the URL to use a different shared board.
 const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
+
+/* ---------------- What's new ----------------
+   Bump APP_VERSION and prepend an entry whenever you ship features. The popup
+   auto-shows once per version (tracked in localStorage), and the ✨ button in the
+   header reopens it any time.                                                   */
+const APP_VERSION = "2026.10.05";
+const WHATS_NEW = [
+  { v:"2026.10.05", title:"Installable app, season grouping & more", items:[
+    "📲 <b>Install WatchLog as an app</b> — add it to your home screen for a fullscreen, app-like feel that loads offline.",
+    "🗂️ <b>Seasons group together</b> — same-show seasons now collapse into one expandable card to cut the clutter.",
+    "✖ <b>Dropped section</b> — dropped shows tuck into their own collapsible section, like Finished.",
+    "ⓘ <b>Preview before adding</b> — tap the ⓘ on any search result to read its description without adding it.",
+    "🆕 <b>'New this week' badge</b> — flags shows whose sub or dub just dropped.",
+    "🖼️ <b>Sharper cover art</b> across all the cards.",
+    "💾 <b>Backup</b> your list and 🔐 <b>change your password</b> from your profile.",
+    "🔑 <b>Forgot password?</b> link added to the login screen.",
+    "🐛 Fixed a glitch that briefly showed two cards when adding a show.",
+  ]},
+];
 
 /* ---------------- AniList ---------------- */
 const ANILIST = "https://graphql.anilist.co";
@@ -807,6 +875,10 @@ const $ = s=>document.querySelector(s);
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2200); }
 function statusClass(s){return {"Watching":"s-watching","Caught up":"s-caught","Plan to watch":"s-plan","Finished":"s-done","Dropped":"s-dropped"}[s]||"s-caught";}
 function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+// AniList serves covers at small/medium/large on the same CDN path. Stored covers
+// are the low-res "small" (100px); swap to "large" (~460px) at display time so cards
+// stay crisp — no refetch or data change needed. (extraLarge isn't available for all.)
+function hiRes(url){ return (url||"").replace(/\/cover\/(small|medium)\//,"/cover/large/"); }
 // Surface the real backend error so save failures are diagnosable, not just "failed".
 function saveErr(e){ console.error("WatchLog save error:",e); return "Save failed — "+((e&&(e.message||e.details||e.hint))||"see console (F12)"); }
 
@@ -959,6 +1031,7 @@ function dubComplete(s){ const tot=totalEps(s.anilistId), dl=dubLatest(s.anilist
      {kind:"break"} | {kind:"finished"} */
 function weekSlot(s){
   if(s.status==="Finished") return {kind:"finished"};
+  if(s.status==="Dropped") return {kind:"dropped"};
   const ds=dubSchedule(s.anilistId);
   const a=airInfo(s.anilistId);
   if(ds && ds.source==="manual" && !dubComplete(s))
@@ -966,6 +1039,67 @@ function weekSlot(s){
   if(a.dayIndex!=null) return {kind:"sub", dayIndex:a.dayIndex, at:a.at||0};  // sub simulcasting → exact
   if(dubStillReleasing(s)) return ds ? {kind:"dub", dayIndex:ds.weekday, at:ds.next.getTime(), ds} : {kind:"dubTBD"};
   return {kind:"break"};
+}
+
+// "New this week": a fresh sub episode aired, or a fresh dub was recorded, in the
+// last ~3 days. Returns "sub" | "dub" | null. Dub-first, since that's what matters here.
+const NEW_WINDOW = 3*864e5;
+function recentlyDropped(s){
+  if(s.status==="Finished"||s.status==="Dropped") return null;
+  const now=Date.now();
+  const ds=dubSchedule(s.anilistId);
+  if(ds && ds.lastDate){ const age=now-ds.lastDate.getTime(); if(age>=0 && age<NEW_WINDOW) return "dub"; }
+  const a=airInfo(s.anilistId);
+  if(a.cd==="upcoming" && a.at){
+    const lastAired=a.at-7*864e5;                 // previous weekly episode
+    if(lastAired<=now && now-lastAired<NEW_WINDOW) return "sub";
+  }
+  return null;
+}
+function newBadge(s){ const n=recentlyDropped(s); return n ? `<span class="tag newtag" title="New ${n==="dub"?"dub":"episode"} in the last few days">🆕 New ${n==="dub"?"dub":"ep"}</span>` : ""; }
+
+/* ---------------- Season grouping ----------------
+   Collapse "same show, different season" into one series card. Detection is by
+   title: strip trailing season/part/cour markers and roman numerals to a base
+   key. Heuristic — it groups the common cases and leaves anything it can't match
+   as its own card. Each season stays a separate, fully-editable entry.          */
+function seriesBase(title){
+  let t=(title||"").trim();
+  t=t.replace(/[\s:：–—-]+(?:the\s+)?(?:final\s+season|season\s*\d+|\d+(?:st|nd|rd|th)\s+season|part\s*\d+|cour\s*\d+|s\d+)\s*$/i,"");
+  t=t.replace(/\s+(?:II|III|IV|V|VI|VII|VIII|IX|X)\s*$/,"");
+  return t.replace(/[\s:：–—-]+$/,"").trim();
+}
+function seriesKey(title){ return seriesBase(title).toLowerCase(); }
+function seasonNum(title){
+  const t=title||"";
+  let m=t.match(/season\s*(\d+)/i)||t.match(/(\d+)(?:st|nd|rd|th)\s+season/i)||t.match(/part\s*(\d+)/i)||t.match(/cour\s*(\d+)/i)||t.match(/\bs(\d+)\s*$/i);
+  if(m) return Number(m[1]);
+  const r=t.match(/\s(II|III|IV|V|VI|VII|VIII|IX|X)\s*$/);
+  if(r){ const map={II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10}; return map[r[1]]; }
+  return 1;
+}
+function groupBySeries(list){
+  const map=new Map();
+  list.forEach(s=>{ const k=seriesKey(s.title)||("__"+s.id); if(!map.has(k)) map.set(k,[]); map.get(k).push(s); });
+  return [...map.values()];
+}
+// Render a list, collapsing multi-season series into one expandable card.
+function renderGrouped(list, renderOne){
+  return groupBySeries(list).map(g=>{
+    if(g.length<2) return renderOne(g[0]);
+    const seasons=g.slice().sort((a,b)=>seasonNum(a.title)-seasonNum(b.title));
+    const rep=seasons[seasons.length-1];
+    const cover=rep.cover?hiRes(rep.cover):"";
+    const anyNew=seasons.some(s=>recentlyDropped(s));
+    return `<details class="series-grp">
+      <summary class="series-sum">
+        <span class="series-cv" style="${cover?`background-image:url('${esc(cover)}')`:""}"></span>
+        <span class="series-info"><span class="series-ttl">${esc(seriesBase(rep.title))}</span>
+          <span class="series-meta">${seasons.length} seasons${anyNew?` · <span class="tag newtag">🆕 new</span>`:""}</span></span>
+      </summary>
+      <div class="series-inner">${seasons.map(renderOne).join("")}</div>
+    </details>`;
+  }).join("");
 }
 
 /* ---------------- Rendering ---------------- */
@@ -988,7 +1122,8 @@ function showCard(s){
   const delayed = isDelayed(s.anilistId);
   const slot=weekSlot(s);
   let cd="";
-  if(slot.kind==="dub"){ const dl=dubLatest(s.anilistId), ds=slot.ds, c=dubCdText(ds);
+  if(slot.kind==="dropped"){ cd=`<div class="countdown done">✖ Dropped</div>`; }
+  else if(slot.kind==="dub"){ const dl=dubLatest(s.anilistId), ds=slot.ds, c=dubCdText(ds);
     const epTxt = dl?`Dub Ep ${dl.ep+1}`:"Next dub";
     cd=`<div class="countdown dubcd">🎙️ ${epTxt} expected ${c.day}${c.txt==="today"?" — today":" · "+c.txt}${ds.source==="auto"?" <span class='est'>est.</span>":""}</div>`; }
   else if(a.cd==="upcoming" && delayed){
@@ -1012,7 +1147,7 @@ function showCard(s){
   const dayTag = (slot.kind!=="dub" && a.dayName) ? `<span class="tag day">📆 ${a.dayName}</span>` : "";
   const timeTag = (slot.kind!=="dub" && a.time) ? `<span class="tag time" title="Shown in your local timezone (${esc(TZ_NAME)}). Converted from UTC.">🕒 ${a.time}${TZ_ABBR?" "+TZ_ABBR:""}</span>` : "";
   const airedLbl = a.airedEps!=null ? `${a.airedEps}${a.total?" / "+a.total:""} aired` : "";
-  const cover = s.cover ? `style="background-image:url('${esc(s.cover)}')"` : "";
+  const cover = s.cover ? `style="background-image:url('${esc(hiRes(s.cover))}')"` : "";
   const today = a.cd==="upcoming" && isSameLocalDay(a.at);
   // "behind by X" — aired episodes minus the episode you're on
   const behind = (a.airedEps!=null && (s.progress||0) < a.airedEps) ? a.airedEps-(s.progress||0) : 0;
@@ -1040,7 +1175,7 @@ function showCard(s){
     <div class="cover" ${cover}></div>
     <div class="body">
       <p class="title">${esc(s.title)}</p>
-      <div class="meta">${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}${airedLbl?`<span class="tag">📺 ${airedLbl}</span>`:""}</div>
+      <div class="meta">${newBadge(s)}${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}${airedLbl?`<span class="tag">📺 ${airedLbl}</span>`:""}</div>
       ${cd}
       ${streaming}
       ${social}
@@ -1071,7 +1206,7 @@ function nextUp(){
 function heroHTML(){
   const n=nextUp(); if(!n) return "";
   const f=fmtCountdown(n.a.at);
-  const bg=n.a.banner||n.s.cover||"";
+  const bg=n.a.banner||hiRes(n.s.cover)||"";
   const airingToday=isSameLocalDay(n.a.at);
   const dub=dubLatest(n.s.anilistId);
   return `<div class="hero" ${bg?`style="background-image:linear-gradient(90deg,rgba(11,11,24,.94),rgba(11,11,24,.55) 60%,rgba(11,11,24,.3)),url('${esc(bg)}')"`:""}>
@@ -1092,7 +1227,8 @@ function weekCard(s){
   const slot=weekSlot(s);
   const tot=totalEps(s.anilistId);
   let cd="";
-  if(slot.kind==="dub"){ const c=dubCdText(slot.ds);
+  if(slot.kind==="dropped") cd=`<span class="wk-cd done">✖ dropped</span>`;
+  else if(slot.kind==="dub"){ const c=dubCdText(slot.ds);
     cd=`<span class="wk-cd dubcd">🎙️ ${c.txt==="today"?"today":c.txt}${slot.ds.source==="auto"?" <span class='est'>est</span>":""}</span>`; }
   else if(delayed) cd=`<span class="wk-cd warn">⚠️ Delayed</span>`;
   else if(a.cd==="upcoming" && a.at>now){ const f=fmtCountdown(a.at); cd=`<span class="wk-cd ${f.soon?"soon":""}">⏳ ${f.txt}</span>`; }
@@ -1102,7 +1238,7 @@ function weekCard(s){
   else if(a.cd==="finished") cd=`<span class="wk-cd done">✔ finished</span>`;
   else cd=`<span class="wk-cd done">on break</span>`;
   const today = slot.kind==="sub" ? isSameLocalDay(a.at) : (slot.kind==="dub" && isSameLocalDay(slot.at));
-  const cover=s.cover?`style="background-image:url('${esc(s.cover)}')"`:"";
+  const cover=s.cover?`style="background-image:url('${esc(hiRes(s.cover))}')"`:"";
   let epLine;
   if(slot.kind==="dub") epLine = dub?`🎙️ Dub Ep ${dub.ep+1} expected`:`🎙️ Dub episode expected`;
   else if(a.nextEp) epLine = `Ep ${a.nextEp}${dub?` &nbsp;·&nbsp; 🎙️ Dub ${dub.ep}`:""}`;
@@ -1112,7 +1248,7 @@ function weekCard(s){
     <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
     <div class="wcover" ${cover}></div>
     <div class="wbody">
-      <div class="wtitle">${esc(s.title)}</div>
+      <div class="wtitle">${recentlyDropped(s)?`<span class="wknew" title="New ${recentlyDropped(s)==="dub"?"dub":"episode"}">🆕</span> `:""}${esc(s.title)}</div>
       <div class="wmeta">${showTime?`<span class="wk-time">🕒 ${esc(a.time)}</span>`:""}${cd}</div>
       ${epLine?`<div class="wep">${epLine}</div>`:""}
     </div>
@@ -1121,15 +1257,16 @@ function weekCard(s){
 function renderWeek(){
   const root=$("#viewRoot");
   const list=visibleShows();
-  // If explicitly filtering to Finished, just show them all (no empty calendar).
-  if(statusFilter==="Finished"){ root.innerHTML=`<div class="week-loose">${list.map(weekCard).join("")}</div>`; return; }
+  // If explicitly filtering to Finished or Dropped, just show them all (no empty calendar).
+  if(statusFilter==="Finished"||statusFilter==="Dropped"){ root.innerHTML=`<div class="week-loose">${list.map(weekCard).join("")}</div>`; return; }
   const today=new Date().getDay();
   const order=[0,1,2,3,4,5,6]; // Sun..Sat
   const byDay={}; order.forEach(d=>byDay[d]=[]);
-  const dubReleasing=[], onBreak=[], finished=[];
+  const dubReleasing=[], onBreak=[], finished=[], dropped=[];
   list.forEach(s=>{
     const slot=weekSlot(s);
     if(slot.kind==="finished"){ finished.push(s); return; }
+    if(slot.kind==="dropped"){ dropped.push(s); return; }
     if(slot.kind==="dub"){ byDay[slot.dayIndex].push({s,at:slot.at,dub:true}); return; }
     if(slot.kind==="sub"){ byDay[slot.dayIndex].push({s,at:slot.at}); return; }
     if(slot.kind==="dubTBD"){ dubReleasing.push(s); return; }     // dub coming, day not learned yet
@@ -1146,14 +1283,17 @@ function renderWeek(){
   html+=`<div class="dub-legend"><span class="dubdot"></span> Purple = estimated English-dub day (learned from when the dub was last bumped, or set by hand). Sub airings are exact.</div>`;
   if(dubReleasing.length){
     html+=`<h3 class="sec-h">🎙️ Dub still releasing <span class="sec-note">dub day not learned yet — bump the dub counter after a new episode, or set the day in Edit</span></h3>
-      <div class="week-loose">${dubReleasing.map(weekCard).join("")}</div>`;
+      <div class="week-loose">${renderGrouped(dubReleasing, weekCard)}</div>`;
   }
   if(onBreak.length){
     html+=`<h3 class="sec-h">💤 No upcoming episodes <span class="sec-note">on break, between seasons, or fully caught up</span></h3>
-      <div class="week-loose">${onBreak.map(weekCard).join("")}</div>`;
+      <div class="week-loose">${renderGrouped(onBreak, weekCard)}</div>`;
   }
   if(finished.length){
-    html+=`<details class="finished-sec"><summary>✔ Finished · ${finished.length}</summary><div class="week-loose">${finished.map(weekCard).join("")}</div></details>`;
+    html+=`<details class="finished-sec"><summary>✔ Finished · ${finished.length}</summary><div class="week-loose">${renderGrouped(finished, weekCard)}</div></details>`;
+  }
+  if(dropped.length){
+    html+=`<details class="finished-sec dropped-sec"><summary>✖ Dropped · ${dropped.length}</summary><div class="week-loose">${renderGrouped(dropped, weekCard)}</div></details>`;
   }
   root.innerHTML=html;
 }
@@ -1161,13 +1301,17 @@ function renderList(){
   const root=$("#viewRoot");
   const list=visibleShows();
   if(!list.length){ root.innerHTML=emptyState(); return; }
-  if(statusFilter==="Finished"){ root.innerHTML=`<div class="grid-list">${list.map(showCard).join("")}</div>`; return; }
-  const active=list.filter(s=>s.status!=="Finished");
+  if(statusFilter==="Finished"||statusFilter==="Dropped"){ root.innerHTML=`<div class="grid-list">${list.map(showCard).join("")}</div>`; return; }
+  const active=list.filter(s=>s.status!=="Finished" && s.status!=="Dropped");
   const finished=list.filter(s=>s.status==="Finished");
-  let html = active.length ? `<div class="grid-list">${active.map(showCard).join("")}</div>`
-                           : `<div class="hint" style="padding:24px 4px">Nothing active right now — see Finished below.</div>`;
+  const dropped=list.filter(s=>s.status==="Dropped");
+  let html = active.length ? `<div class="grid-list">${renderGrouped(active, showCard)}</div>`
+                           : `<div class="hint" style="padding:24px 4px">Nothing active right now — see Finished / Dropped below.</div>`;
   if(finished.length){
-    html += `<details class="finished-sec"><summary>✔ Finished · ${finished.length}</summary><div class="grid-list">${finished.map(showCard).join("")}</div></details>`;
+    html += `<details class="finished-sec"><summary>✔ Finished · ${finished.length}</summary><div class="grid-list">${renderGrouped(finished, showCard)}</div></details>`;
+  }
+  if(dropped.length){
+    html += `<details class="finished-sec dropped-sec"><summary>✖ Dropped · ${dropped.length}</summary><div class="grid-list">${renderGrouped(dropped, showCard)}</div></details>`;
   }
   root.innerHTML=html;
 }
@@ -1177,7 +1321,7 @@ function posterCard(s){
   let badge="";
   if(a.cd==="upcoming"){ const f=fmtCountdown(a.at); badge=`<span class="pcd ${f.soon?"soon":""}">${f.txt}</span>`; }
   else if(a.cd==="finished") badge=`<span class="pcd done">done</span>`;
-  const bg=s.cover?`background-image:url('${esc(s.cover)}')`:"";
+  const bg=s.cover?`background-image:url('${esc(hiRes(s.cover))}')`:"";
   const today=a.cd==="upcoming"&&isSameLocalDay(a.at);
   return `<button class="poster ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" style="${bg}" title="${esc(s.title)}">
     <span class="poster-grad"></span>
@@ -1327,8 +1471,9 @@ function renderResults(media, heading){
     const added=have.has(String(m.id));
     const sub=[m.format,m.seasonYear,(m.status||"").replace(/_/g," ").toLowerCase()].filter(Boolean).join(" · ");
     return `<div class="result ${added?"added":""}" style="animation-delay:${Math.min(i*30,300)}ms" data-m='${esc(JSON.stringify({id:m.id,title:t,cover:m.coverImage.medium,site_url:m.siteUrl}))}'>
-      <img src="${m.coverImage.medium}" alt="" loading="lazy"/>
-      <div><div class="rt">${esc(t)}</div><div class="rm">${esc(sub)}${added?" · ✔ added":""}</div></div></div>`;
+      <img src="${esc(hiRes(m.coverImage.medium||""))}" alt="" loading="lazy"/>
+      <div class="rbody"><div class="rt">${esc(t)}</div><div class="rm">${esc(sub)}${added?" · ✔ added":""}</div></div>
+      <button class="rinfo" data-act="preview" title="Read description (doesn't add)">ⓘ</button></div>`;
   }).join("");
 }
 async function addShow(m){
@@ -1338,7 +1483,8 @@ async function addShow(m){
   const row = usingCloud ? base : {...base, anilistId:m.id, owner:"me"};
   try{
     const saved=await store.add(row);
-    shows.push(normalize(saved));
+    // The live snapshot (reload) may have already added this row — don't double it.
+    if(!shows.some(x=>x.id===saved.id)) shows.push(normalize(saved));
     render(); refreshLive();
     toast("Added “"+m.title+"”");
   }catch(e){ toast("Add failed: "+e.message); }
@@ -1386,7 +1532,7 @@ async function loadDetails(aniId){
   detailsCache.set(aniId,data.Media); return data.Media;
 }
 function fillDetails(s){
-  $("#detailCover").style.backgroundImage = s.cover?`url('${s.cover}')`:"";
+  $("#detailCover").style.backgroundImage = s.cover?`url('${hiRes(s.cover)}')`:"";
   $("#detailHero").style.backgroundImage="";
   $("#detailMeta").innerHTML=`<span class="spinner" style="width:13px;height:13px;border-width:2px"></span>`;
   $("#detailGenres").innerHTML=""; $("#detailStudio").innerHTML=""; $("#detailStream").innerHTML="";
@@ -1413,9 +1559,27 @@ function fillDetails(s){
     $("#detailStream").innerHTML=streams.map(x=>`<a class="watchpill" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(streamLabel(x.site))}</a>`).join("");
   }).catch(()=>{ if(editingKey===s.id){ $("#detailMeta").innerHTML=`<span class="hint">Details unavailable</span>`; $("#detailSyn").innerHTML=""; } });
 }
-let editingKey=null;
+let editingKey=null, previewMedia=null;
+// Preview an anime from the search results — shows its synopsis without adding it.
+function openPreview(m){
+  previewMedia = m;
+  editingId = null;
+  editingKey = "prev_"+m.id;                 // async guard key for fillDetails
+  const already = showsForUid(meId()).some(x=>String(x.anilistId)===String(m.id));
+  $("#editTitle").textContent = m.title;
+  const tb=$("#trackBox"); if(tb) tb.style.display="none";
+  $("#saveEdit").style.display="none";
+  $("#removeShow").style.display="none";
+  const ab=$("#addMineBtn");
+  ab.textContent = already ? "✓ Already on your list" : "＋ Add to my list";
+  ab.disabled = already;
+  ab.style.display = loggedIn() ? "" : "none";
+  fillDetails({ id:editingKey, anilistId:m.id, cover:m.cover, title:m.title, site_url:m.site_url });
+  $("#editOverlay").classList.add("show");
+}
 function openEdit(id){
   const s=shows.find(x=>x.id===id); if(!s) return;
+  previewMedia=null;
   const mine = usingCloud ? (s.user_id===myUid) : true;
   editingId = mine ? id : null;
   editingKey = s.id;
@@ -1424,6 +1588,7 @@ function openEdit(id){
   $("#saveEdit").style.display = mine?"":"none";
   $("#removeShow").style.display = mine?"":"none";
   const iHave = showsForUid(meId()).some(x=>String(x.anilistId)===String(s.anilistId));
+  const ab=$("#addMineBtn"); ab.textContent="＋ Add to my list"; ab.disabled=false;
   $("#addMineBtn").style.display = (loggedIn() && !mine && !iHave) ? "":"none";
   $("#editStatus").value=s.status;
   $("#editProgress").value=s.progress||0;
@@ -1590,7 +1755,7 @@ async function doImport(){
     const rows=fresh.map(it=>({anilist_id:it.id,title:it.title,cover:it.cover,site_url:it.site_url,status:it.status,progress:it.progress||0,notes:"",owner:displayName(meId())}));
     const payload = usingCloud ? rows : rows.map(r=>({...r,anilistId:r.anilist_id,owner:"me"}));
     const saved=await store.addMany(payload);
-    saved.forEach(r=>shows.push(normalize(r)));
+    saved.forEach(r=>{ if(!shows.some(x=>x.id===r.id)) shows.push(normalize(r)); });
     render(); refreshLive();
     st.textContent=`✅ Imported ${saved.length} show${saved.length!==1?"s":""}!`;
     toast("Imported "+saved.length+" shows");
@@ -1610,6 +1775,18 @@ $("#addBtn").onclick=$("#fabAdd").onclick=()=>{ $("#addOverlay").classList.add("
 $("#importBtn").onclick=openImport;
 $("#notifyBtn").onclick=toggleNotify;
 $("#themeBtn").onclick=toggleTheme;
+function renderWhatsNew(){
+  $("#whatsNewBody").innerHTML = WHATS_NEW.map(e=>`<div class="wn-block"><div class="wn-h">${esc(e.title)}</div>
+    <ul class="wn-list">${e.items.map(i=>`<li>${i}</li>`).join("")}</ul></div>`).join("");
+}
+function openWhatsNew(){ renderWhatsNew(); $("#whatsNewOverlay").classList.add("show"); }
+function maybeShowWhatsNew(){
+  let seen=null; try{ seen=localStorage.getItem("watchlog:seenVersion"); }catch(e){}
+  if(seen!==APP_VERSION){ openWhatsNew(); try{ localStorage.setItem("watchlog:seenVersion",APP_VERSION); }catch(e){} }
+}
+$("#whatsNewBtn").onclick=openWhatsNew;
+$("#whatsNewClose").onclick=()=>$("#whatsNewOverlay").classList.remove("show");
+$("#whatsNewOverlay").addEventListener("click",e=>{ if(e.target===$("#whatsNewOverlay")) $("#whatsNewOverlay").classList.remove("show"); });
 $("#importSrc").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; importSrc=b.dataset.src; syncImportSeg(); $("#importStatus").textContent=""; });
 $("#importGo").onclick=doImport;
 $("#importUser").addEventListener("keydown",e=>{ if(e.key==="Enter") doImport(); });
@@ -1625,14 +1802,18 @@ $("#searchInput").addEventListener("input",()=>{
 });
 $("#genreSel").onchange=doSearch;
 $("#closeEdit2").onclick=()=>$("#editOverlay").classList.remove("show");
-$("#results").addEventListener("click",e=>{ const el=e.target.closest(".result"); if(!el||el.classList.contains("added"))return;
+$("#results").addEventListener("click",e=>{ const el=e.target.closest(".result"); if(!el) return;
   let m; try{ m=JSON.parse(el.dataset.m); }catch(err){ console.error("Couldn't parse result:",err,el.dataset.m); toast("Couldn't read that title — please try again"); return; }
+  if(e.target.closest(".rinfo")){ openPreview(m); return; }   // ⓘ → read description without adding
+  if(el.classList.contains("added")) return;
   addShow(m); el.classList.add("added"); el.querySelector(".rm").innerHTML+=" · ✔ added"; });
 $("#closeEdit").onclick=()=>$("#editOverlay").classList.remove("show");
 $("#saveEdit").onclick=saveEdit;
 $("#removeShow").onclick=removeShow;
 $("#editDelay").onclick=()=>{ if(editDelayEp==null) return; editDelayOn=!editDelayOn; updateDelayBtn(); };
-$("#addMineBtn").onclick=async()=>{ const id=editingKey; $("#editOverlay").classList.remove("show"); await addFromShow(id); };
+$("#addMineBtn").onclick=async()=>{ const id=editingKey; const pm=previewMedia; $("#editOverlay").classList.remove("show");
+  if(pm){ previewMedia=null; await addShow(pm); }           // adding from a search preview
+  else { await addFromShow(id); } };                        // copying someone else's show
 $("#refreshBtn").onclick=()=>{ refreshLive(); toast("Refreshing schedules…"); };
 $("#viewSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return;
   [...$("#viewSeg").children].forEach(x=>x.classList.remove("active")); b.classList.add("active"); currentView=b.dataset.view; render(); });
@@ -1716,7 +1897,42 @@ function openProfile(){
   pickColor = p.color||"#8b6cff";
   buildAvatarGrid(); buildColorGrid(); updateProfPreview();
   $("#logoutBtn").style.display = loggedIn() ? "inline-flex":"none";
+  $("#pwRow").style.display = (usingCloud && loggedIn()) ? "block":"none";   // password only in cloud mode
+  $("#newPw").value=""; $("#pwMsg").textContent="";
   $("#profileOverlay").classList.add("show"); setTimeout(()=>$("#profName").focus(),50);
+}
+// Download the current user's list as a JSON backup.
+function doExport(){
+  const mine=showsForUid(meId()).map(s=>{
+    const o={...s}; delete o.id; delete o.user_id; delete o.board_id;   // drop internal/account fields
+    o.anilist_id = s.anilist_id!=null ? s.anilist_id : s.anilistId; delete o.anilistId;
+    return o;
+  });
+  const prof=(usingCloud?myProfile:localProfile)||{name:"me"};
+  const data={ app:"WatchLog", version:1, exported:new Date().toISOString(), board:BOARD_ID, profile:{name:prof.name,avatar:prof.avatar,color:prof.color}, count:mine.length, shows:mine };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const safe=(prof.name||"list").replace(/[^\w-]+/g,"_");
+  a.href=url; a.download=`watchlog-${safe}-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast("Exported "+mine.length+" show"+(mine.length===1?"":"s"));
+}
+async function changePassword(){
+  const pw=$("#newPw").value;
+  const msg=$("#pwMsg");
+  if(pw.length<6){ msg.style.color="var(--pink)"; msg.textContent="At least 6 characters."; return; }
+  try{
+    await fb.auth.currentUser.updatePassword(pw);
+    msg.style.color="var(--good)"; msg.textContent="Password updated.";
+    $("#newPw").value="";
+  }catch(e){
+    msg.style.color="var(--pink)";
+    msg.textContent = (e && e.code==="auth/requires-recent-login")
+      ? "For security, log out and back in, then change it."
+      : (e.message||"Couldn't update password.");
+  }
 }
 function buildAvatarGrid(){
   $("#avatarGrid").innerHTML=AVATARS.map(a=>`<button class="avopt ${a===pickAvatar?"sel":""}" data-av="${a}">${a}</button>`).join("");
@@ -1762,6 +1978,9 @@ async function saveProfile(){
 }
 $("#saveProfile").onclick=saveProfile;
 $("#logoutBtn").onclick=async()=>{ $("#profileOverlay").classList.remove("show"); await authSignOut(); };
+$("#exportBtn").onclick=doExport;
+$("#changePwBtn").onclick=changePassword;
+$("#newPw").addEventListener("keydown",e=>{ if(e.key==="Enter") changePassword(); });
 $("#profileOverlay").addEventListener("click",e=>{ if(e.target===$("#profileOverlay") && loggedIn()) $("#profileOverlay").classList.remove("show"); });
 
 /* ---------------- Init ---------------- */
@@ -1803,6 +2022,10 @@ function initSyncUI(){
   // periodic countdown tick + auto-resync on elapsed + hourly refresh + notifications
   setInterval(()=>{ if(currentView) render(); maybeAutoRefresh(); checkNotifications(); }, 60000);
   setInterval(()=>refreshLive(true), 60*60*1000);
+  // Register the service worker so WatchLog installs as an app and loads offline.
+  if("serviceWorker" in navigator && location.protocol==="https:"){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+  // Show "what's new" once per version — but never on top of first-run setup.
+  setTimeout(()=>{ if(!$("#authOverlay").classList.contains("show") && !$("#profileOverlay").classList.contains("show")) maybeShowWhatsNew(); }, 900);
 })();
 </script>
 </body>

@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-10 — Installable app, season grouping, Dropped section, previews & more
+- **Installable app (PWA):** added a web manifest, icons, and an offline service
+  worker, so WatchLog installs on phones/desktop with its own icon, opens
+  fullscreen, and loads instantly even offline.
+- **Season grouping:** same-show seasons (detected by title) collapse into one
+  expandable "series" card to cut clutter. Grouping happens within a section
+  (active / Finished / Dropped), and each season stays its own editable entry.
+- **"What's new" popup:** a ✨ button in the header (and an auto-popup once per
+  version) shows what's been added/changed.
+- **Dropped section:** shows marked Dropped now collapse into their own
+  `✖ Dropped` section (like Finished) in both Weekly and List views, instead of
+  cluttering the active lineup.
+- **Read descriptions before adding:** each search result has an ⓘ button that
+  opens a preview with the synopsis, genres, studio and streaming links —
+  without adding the show. An **＋ Add to my list** button is right there if you
+  decide to.
+- **"New this week" cues:** a 🆕 badge marks shows whose sub or dub dropped in
+  the last few days, so you can see at a glance what's new.
+- **Backup / export:** a button in your profile downloads your list as a JSON
+  file — a safety net and a portable copy.
+- **Change password in-app:** a "Change password" field in your profile (cloud
+  mode), complementing the Forgot-password link.
+- **Sharper cover art:** cards now display AniList's larger cover image
+  (~460px) instead of the stored low-res "small" (100px) — crisp on every
+  screen, with no refetch or data change.
+- **Fix:** adding an anime no longer briefly shows two cards (a race between the
+  optimistic add and the live-sync refresh).
+
 ## 2026-10 — Forgot-password link
 - Added a **Forgot password?** link on the login screen. It emails a reset link
   (via Firebase Auth) so anyone can set their own password — handy when an
