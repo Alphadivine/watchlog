@@ -702,9 +702,10 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    header reopens it any time.                                                   */
 const APP_VERSION = "2026.10.05d";
 const WHATS_NEW = [
-  { v:"2026.10.05d", title:"Anime character avatars + new logo", items:[
+  { v:"2026.10.05d", title:"Character avatars, new logo & more", items:[
     "🎭 <b>Anime character avatars</b> — in your profile, search a show (or tap one of yours) and pick a character's portrait as your avatar, pulled from AniList.",
     "💬 <b>New logo</b> — a speech bubble with a play button, a nod to dubs.",
+    "🔜 <b>'Coming soon' section</b> — shows that haven't aired yet are now split out from the 'On break' ones in the weekly view.",
   ]},
   { v:"2026.10.05c", title:"Browse by release day", items:[
     "📅 <b>Browse by release day</b> — in <b>＋ Add anime</b>, tap a weekday (Sun–Sat) to see every anime that airs that day in your timezone. Great for filling an empty slot with something new.",
@@ -1108,6 +1109,7 @@ function weekSlot(s){
     return {kind:"dub", dayIndex:ds.weekday, at:ds.next.getTime(), ds};   // explicit day wins
   if(a.dayIndex!=null) return {kind:"sub", dayIndex:a.dayIndex, at:a.at||0};  // sub simulcasting → exact
   if(dubStillReleasing(s)) return ds ? {kind:"dub", dayIndex:ds.weekday, at:ds.next.getTime(), ds} : {kind:"dubTBD"};
+  if(a.cd==="notyet") return {kind:"soon"};     // hasn't premiered yet (vs. on break / caught up)
   return {kind:"break"};
 }
 
@@ -1291,6 +1293,7 @@ function weekCard(s){
   else if(a.cd==="upcoming" && now-a.at<90*60000) cd=`<span class="wk-cd soon">🟢 out now</span>`;
   else if(a.cd==="upcoming") cd=`<span class="wk-cd warn">expected…</span>`;
   else if(slot.kind==="dubTBD") cd=`<span class="wk-cd dubcd">🎙️ Dub ${dub?dub.ep:0}${tot?"/"+tot:""}</span>`;
+  else if(slot.kind==="soon") cd=`<span class="wk-cd done">🔜 not yet aired</span>`;
   else if(a.cd==="finished") cd=`<span class="wk-cd done">✔ finished</span>`;
   else cd=`<span class="wk-cd done">on break</span>`;
   const today = slot.kind==="sub" ? isSameLocalDay(a.at) : (slot.kind==="dub" && isSameLocalDay(slot.at));
@@ -1318,7 +1321,7 @@ function renderWeek(){
   const today=new Date().getDay();
   const order=[0,1,2,3,4,5,6]; // Sun..Sat
   const byDay={}; order.forEach(d=>byDay[d]=[]);
-  const dubReleasing=[], onBreak=[], finished=[], dropped=[];
+  const dubReleasing=[], onBreak=[], soon=[], finished=[], dropped=[];
   list.forEach(s=>{
     const slot=weekSlot(s);
     if(slot.kind==="finished"){ finished.push(s); return; }
@@ -1326,7 +1329,8 @@ function renderWeek(){
     if(slot.kind==="dub"){ byDay[slot.dayIndex].push({s,at:slot.at,dub:true}); return; }
     if(slot.kind==="sub"){ byDay[slot.dayIndex].push({s,at:slot.at}); return; }
     if(slot.kind==="dubTBD"){ dubReleasing.push(s); return; }     // dub coming, day not learned yet
-    onBreak.push(s);                                              // truly no upcoming
+    if(slot.kind==="soon"){ soon.push(s); return; }               // hasn't premiered yet
+    onBreak.push(s);                                              // on break / caught up
   });
   let html=`<div class="week">`;
   order.forEach(d=>{
@@ -1342,8 +1346,12 @@ function renderWeek(){
       <div class="week-loose">${renderGrouped(dubReleasing, weekCard)}</div>`;
   }
   if(onBreak.length){
-    html+=`<h3 class="sec-h">💤 No upcoming episodes <span class="sec-note">on break, between seasons, or fully caught up</span></h3>
+    html+=`<h3 class="sec-h">💤 On break <span class="sec-note">between seasons, waiting on a new season, or fully caught up</span></h3>
       <div class="week-loose">${renderGrouped(onBreak, weekCard)}</div>`;
+  }
+  if(soon.length){
+    html+=`<h3 class="sec-h">🔜 Coming soon <span class="sec-note">not yet aired — no episodes out yet</span></h3>
+      <div class="week-loose">${renderGrouped(soon, weekCard)}</div>`;
   }
   if(finished.length){
     html+=`<details class="finished-sec"><summary>✔ Finished · ${finished.length}</summary><div class="week-loose">${renderGrouped(finished, weekCard)}</div></details>`;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10 — "Coming soon" section
+- Split the weekly view's catch-all "No upcoming episodes" into two: **💤 On
+  break** (between seasons / caught up) and **🔜 Coming soon** (shows that
+  haven't aired yet, flagged NOT_YET_RELEASED by AniList). So a brand-new show
+  like *The Vermilion Mask* no longer sits next to shows on hiatus.
+
 ## 2026-10 — Anime character avatars
 - **Anime character avatars:** in your profile, under the avatar options, search
   an anime (or tap one of your tracked shows) to load its cast, then tap a
