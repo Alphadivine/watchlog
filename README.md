@@ -1,6 +1,6 @@
 # 📺 WatchLog
 
-A shared anime release tracker for you and your friends. See what airs each day, track your progress, know when the **English dub** drops, and browse what everyone else is watching — all in one place, synced live. A separate **🍿 Shows** board tracks non-anime movies & TV (Netflix, Prime, Disney+, …) too.
+A shared anime release tracker for you and your friends. See what airs each day, track your progress, know when the **English dub** drops, and browse what everyone else is watching — all in one place, synced live. Separate **🍿 Shows** and **🎬 Movies** boards track non-anime TV & films (Netflix, Prime, Disney+, …) too.
 
 WatchLog is a single self-contained HTML file. No build step, no framework, no server of your own — it runs entirely in the browser and stores shared data in a free [Firebase](https://firebase.google.com) (Firestore) project.
 
@@ -10,7 +10,7 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 
 ## ✨ Features
 
-- **🎌 Anime & 🍿 Shows boards** — a toggle at the top switches between your anime (AniList) and a separate board for non-anime movies & live-action/Western TV from every service, powered by [TMDB](https://www.themoviedb.org). Search any title, preview it, and track status, progress and ratings; currently-airing series get a next-episode countdown and every card shows where to stream it. Both boards share your account, profiles and views.
+- **🎌 Anime · 🍿 Shows · 🎬 Movies boards** — a toggle at the top switches between your anime (AniList), live-action/Western TV series, and movies — the last two from every service, powered by [TMDB](https://www.themoviedb.org). TV and movies are separate boards so films don't clutter your series list. Search any title, preview it, and track status, progress and ratings; currently-airing series get a next-episode countdown (with season · episode) and every card shows where to stream it. All three boards share your account, profiles and views.
 - **Auto schedule from [AniList](https://anilist.co)** — add a show and it pulls the air day, air time, and a live next-episode countdown automatically.
 - **Local timezones** — everyone sees air times converted to their own timezone from UTC.
 - **Three views** — a Sun→Sat weekly calendar, a detailed list, and a poster wall.

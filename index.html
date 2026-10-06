@@ -472,6 +472,7 @@
     <div class="seg boardseg" id="boardSeg">
       <button data-board="anime" class="active">🎌 Anime</button>
       <button data-board="show">🍿 Shows</button>
+      <button data-board="movie">🎬 Movies</button>
     </div>
   </div>
   <div class="controls">
@@ -724,11 +725,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    header reopens it any time.                                                   */
 const APP_VERSION = "2026.10.06a";
 const WHATS_NEW = [
-  { v:"2026.10.06a", title:"New: a Shows board for movies & TV", items:[
-    "🍿 <b>Shows board</b> — use the <b>🎌 Anime / 🍿 Shows</b> toggle up top to switch to a whole separate board for non-anime movies &amp; TV (Netflix, Prime, Disney+, anything). Search any title, add it, and track status, progress and ratings just like anime.",
-    "📺 <b>Same features, show data</b> — next-episode countdowns for currently-airing series, a 'where to stream' badge on each card, Finished/Dropped sections, watch-sync, 'Pick for us' and the weekly view all work on the Shows board too.",
-    "🔢 <b>Season + episode tracking</b> — for multi-season series the card shows where you are as <b>S2 · E3</b>, with separate season and episode steppers (and both fields in Edit). Watch-sync shows each person's season &amp; episode.",
-    "🎙️ The dub tools, character avatars and AniList browse stay on the Anime board, where they belong. Your anime list is untouched.",
+  { v:"2026.10.06a", title:"New: Shows & Movies boards", items:[
+    "🍿🎬 <b>Three boards now</b> — a <b>🎌 Anime · 🍿 Shows · 🎬 Movies</b> toggle up top. Shows and Movies are powered by TMDB and cover everything on Netflix, Prime, Disney+, etc. Search any title, add it, and track status, progress and ratings just like anime.",
+    "📺 <b>Same features, show data</b> — next-episode countdowns for currently-airing series, a 'where to stream' badge on each card, Finished/Dropped sections, watch-sync, 'Pick for us' and all three views work on the new boards too.",
+    "🔢 <b>Season + episode tracking</b> — multi-season series show where you are as <b>S2 · E3</b> (in List, Weekly and Poster), with separate season/episode steppers, the latest episode out, and a 'behind' flag. Movies are a simple watchlist.",
+    "🎙️ The dub tools, character avatars and AniList browse stay on the Anime board. Your anime list is untouched.",
   ]},
   { v:"2026.10.05e", title:"Fixes: schedules for big lists & no more lost place", items:[
     "🗓️ <b>All your shows get their schedule now</b> — on boards with more than 50 shows, everything past the first 50 was missing its air day/countdown and landed under 'On break' (that's why <i>The Vermilion Mask</i> wasn't showing under 'Coming soon'). WatchLog now loads them all.",
@@ -881,7 +882,10 @@ let store = LocalStore;
 let shows = [];          // stored rows
 const live = new Map();  // anilistId -> live airing data (anime, from AniList)
 const tlive = new Map(); // "tv:ID"/"movie:ID" -> live detail (shows, from TMDB)
-let boardKind = (()=>{ try{ return localStorage.getItem("watchlog:boardKind")||"anime"; }catch(e){ return "anime"; } })();  // "anime" | "show"
+let boardKind = (()=>{ try{ let k=localStorage.getItem("watchlog:boardKind")||"anime"; if(k==="shows") k="show"; return k; }catch(e){ return "anime"; } })();  // "anime" | "show" (TV) | "movie"
+// Which board a row belongs to: anime, show (TV), or movie.
+function onBoard(s){ const k=s.kind||"anime"; if(boardKind==="anime") return k==="anime"; const mv=(s.mediaType||"tv")==="movie"; return k==="show" && (boardKind==="movie"?mv:!mv); }
+function isTmdbBoard(){ return boardKind!=="anime"; }
 let currentView = "week";
 let statusFilter = "all";
 let listFilter = "";
@@ -1332,26 +1336,28 @@ function posterCardTv(s){
       <span class="ps">${movie?"Movie":("S"+(s.season||1)+" · E"+(s.progress||0))}</span></span>
   </button>`;
 }
-// ---- TMDB search + add ----
+// ---- TMDB search + add (scoped to the current board: TV vs Movie) ----
+function tmdbMediaType(){ return boardKind==="movie" ? "movie" : "tv"; }
 async function tmdbSearch(q){
-  const box=$("#results"); const seq=++searchSeq;
-  if(!q){ box.innerHTML=`<div class="hint">Start typing a movie or show title. Powered by TMDB.</div>`; return; }
+  const box=$("#results"); const seq=++searchSeq; const type=tmdbMediaType();
+  if(!q){ box.innerHTML=`<div class="hint">Start typing a ${type==="movie"?"movie":"show"} title. Powered by TMDB.</div>`; return; }
   if(!tmdbReady()){ box.innerHTML=`<div class="hint">No TMDB key configured yet.</div>`; return; }
   box.innerHTML=`<div style="text-align:center;padding:24px"><span class="spinner"></span></div>`;
   try{
-    const data=await tmdbGet(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false&language=en-US&page=1`);
+    const data=await tmdbGet(`/search/${type}?query=${encodeURIComponent(q)}&include_adult=false&language=en-US&page=1`);
     if(seq!==searchSeq) return;
-    const media=(data.results||[]).filter(x=>x.media_type==="movie"||x.media_type==="tv");
+    const media=(data.results||[]).map(x=>({...x, media_type:type}));
     if(!media.length){ box.innerHTML=`<div class="hint">No results for “${esc(q)}”.</div>`; return; }
     renderResultsTv(media);
   }catch(e){ box.innerHTML=`<div class="hint">Search failed: ${esc(e.message)}.</div>`; }
 }
 async function tmdbTrending(){
-  const box=$("#results"); searchSeq++;
+  const box=$("#results"); searchSeq++; const type=tmdbMediaType();
   box.innerHTML=`<div style="text-align:center;padding:24px"><span class="spinner"></span><div class="hint" style="margin-top:8px">Loading what's popular…</div></div>`;
   try{
-    const data=await tmdbGet(`/trending/all/week?language=en-US`);
-    renderResultsTv((data.results||[]).filter(x=>x.media_type==="movie"||x.media_type==="tv"), "🔥 Trending this week:");
+    const data=await tmdbGet(`/trending/${type}/week?language=en-US`);
+    const media=(data.results||[]).map(x=>({...x, media_type:type}));
+    renderResultsTv(media, `🔥 Trending ${type==="movie"?"movies":"shows"} this week:`);
   }catch(e){ box.innerHTML=`<div class="hint">Couldn't load trending: ${esc(e.message)}.</div>`; }
 }
 function renderResultsTv(media, heading){
@@ -1499,7 +1505,7 @@ function renderGrouped(list, renderOne){
 /* ---------------- Rendering ---------------- */
 function visibleShows(){
   const q=listFilter.trim().toLowerCase();
-  let list=ownerShows().filter(s=> (s.kind||"anime")===boardKind
+  let list=ownerShows().filter(s=> onBoard(s)
     && (statusFilter==="all"||s.status===statusFilter)
     && (!q || (s.title||"").toLowerCase().includes(q)));
   const BIG=8.64e15;
@@ -1594,7 +1600,7 @@ function showCard(s){
 // The soonest upcoming episode across all tracked shows, for the hero banner.
 function nextUp(){
   let best=null;
-  ownerShows().forEach(s=>{ if((s.kind||"anime")!==boardKind) return; const a=infoOf(s);
+  ownerShows().forEach(s=>{ if(!onBoard(s)) return; const a=infoOf(s);
     if(a.cd==="upcoming" && a.at>Date.now() && (!best || a.at<best.a.at)) best={s,a}; });
   return best;
 }
@@ -1759,9 +1765,12 @@ function emptyState(){
   if(isReadOnly() && viewingUid) return `<div class="empty-state"><div class="big">🍿</div>
     <h2 style="margin:0 0 6px">${esc(displayName(viewingUid))}'s list is empty</h2>
     <p>Nothing here yet — check back later.</p></div>`;
+  if(boardKind==="movie") return `<div class="empty-state"><div class="big">🎬</div>
+    <h2 style="margin:0 0 6px">No movies yet</h2>
+    <p>Hit <b>＋ Add movie</b> to search films from every service and start a watchlist.</p></div>`;
   if(boardKind==="show") return `<div class="empty-state"><div class="big">🍿</div>
     <h2 style="margin:0 0 6px">No shows yet</h2>
-    <p>Hit <b>＋ Add show</b> to search movies &amp; TV from every service and start tracking.</p></div>`;
+    <p>Hit <b>＋ Add show</b> to search TV series from every service and start tracking.</p></div>`;
   return `<div class="empty-state"><div class="big">📺</div>
     <h2 style="margin:0 0 6px">Your list is empty</h2>
     <p>Hit <b>＋ Add anime</b> to search AniList and start tracking release days.</p></div>`;
@@ -1772,7 +1781,7 @@ function renderProfiles(){
   if(!owners.length){ bar.innerHTML=""; return; }
   // Count unique anime per person (seasons of the same show count once).
   const counts={}, seenSeries={};
-  shows.forEach(s=>{ if((s.kind||"anime")!==boardKind) return; const o=ownerOf(s); if(o==null) return; const sk=o+"|"+seriesKeyOf(s); if(seenSeries[sk]) return; seenSeries[sk]=1; counts[o]=(counts[o]||0)+1; });
+  shows.forEach(s=>{ if(!onBoard(s)) return; const o=ownerOf(s); if(o==null) return; const sk=o+"|"+seriesKeyOf(s); if(seenSeries[sk]) return; seenSeries[sk]=1; counts[o]=(counts[o]||0)+1; });
   const me=meId();
   const active=viewingUid||me;
   const chips = owners.map(o=>{
@@ -1817,7 +1826,7 @@ function render(){
   const mine=ownerShows();
   const hero=$("#heroRoot"); if(hero) hero.innerHTML = mine.length ? heroHTML() : "";
   if(!mine.length){ $("#viewRoot").innerHTML=emptyState(); return; }
-  if(currentView==="week") renderWeek();
+  if(currentView==="week" && boardKind!=="movie") renderWeek();   // movies have no weekly cadence
   else if(currentView==="posters") renderPosters();
   else renderList();
   restoreViewState(st);
@@ -1884,7 +1893,7 @@ async function reload(){
 let searchTimer=null, searchSeq=0;
 function currentGenre(){ const g=$("#genreSel"); return g&&g.value?g.value:null; }
 async function doSearch(){
-  if(boardKind==="show") return tmdbSearch($("#searchInput").value.trim());
+  if(isTmdbBoard()) return tmdbSearch($("#searchInput").value.trim());
   const q=$("#searchInput").value.trim(); const box=$("#results"); const g=currentGenre();
   if(!q && g) return browseGenre();
   if(!q){ box.innerHTML=`<div class="hint">Start typing a title, or pick a genre to browse. Powered by AniList.</div>`; return; }
@@ -2372,13 +2381,13 @@ $("#importSrc").addEventListener("click",e=>{ const b=e.target.closest("button")
 $("#importGo").onclick=doImport;
 $("#importUser").addEventListener("keydown",e=>{ if(e.key==="Enter") doImport(); });
 $("#closeAdd").onclick=()=>closeOverlay($("#addOverlay"));
-$("#trendingBtn").onclick=()=>{ boardKind==="show" ? tmdbTrending() : loadTrending(); };
+$("#trendingBtn").onclick=()=>{ isTmdbBoard() ? tmdbTrending() : loadTrending(); };
 $("#searchInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ clearTimeout(searchTimer); doSearch(); } });
 $("#searchInput").addEventListener("input",()=>{
   clearTimeout(searchTimer);
   const q=$("#searchInput").value.trim();
   if(q.length===0){
-    if(boardKind==="show"){ $("#results").innerHTML=`<div class="hint">Start typing a movie or show title, or hit 🔥 Trending. Powered by TMDB.</div>`; return; }
+    if(isTmdbBoard()){ $("#results").innerHTML=`<div class="hint">Start typing a ${boardKind==="movie"?"movie":"show"} title, or hit 🔥 Trending. Powered by TMDB.</div>`; return; }
     if(currentGenre()) browseGenre(); else $("#results").innerHTML=`<div class="hint">Start typing a title, pick a genre, or hit 🔥 Trending. Powered by AniList.</div>`; return;
   }
   if(q.length<2) return;
@@ -2399,19 +2408,25 @@ $("#editDelay").onclick=()=>{ if(editDelayEp==null) return; editDelayOn=!editDel
 $("#addMineBtn").onclick=async()=>{ const id=editingKey; const pm=previewMedia; const tv=previewIsTv; $("#editOverlay").classList.remove("show");
   if(pm){ previewMedia=null; previewIsTv=false; await (tv?addTmdb(pm):addShow(pm)); }   // adding from a search preview
   else { await addFromShow(id); } };                        // copying someone else's show
-$("#refreshBtn").onclick=()=>{ if(boardKind==="show") refreshTmdb(); else refreshLive(); toast("Refreshing…"); };
+$("#refreshBtn").onclick=()=>{ if(isTmdbBoard()) refreshTmdb(); else refreshLive(); toast("Refreshing…"); };
 // ---- Anime / Shows board toggle ----
 function applyBoardUI(){
-  const ab=$("#addBtn"); if(ab) ab.textContent = boardKind==="show" ? "＋ Add show" : "＋ Add anime";
+  const tmdb=isTmdbBoard();
+  // Movies have no weekly cadence — hide the Weekly view on that board (fall back to List).
+  const wk=document.querySelector('#viewSeg button[data-view="week"]'); if(wk) wk.style.display = boardKind==="movie" ? "none":"";
+  if(boardKind==="movie" && currentView==="week") currentView="list";
+  const vseg=$("#viewSeg"); if(vseg) [...vseg.children].forEach(x=>x.classList.toggle("active", x.dataset.view===currentView));
+  const addLbl = boardKind==="movie" ? "＋ Add movie" : (boardKind==="show" ? "＋ Add show" : "＋ Add anime");
+  const ab=$("#addBtn"); if(ab) ab.textContent = addLbl;
   const seg=$("#boardSeg"); if(seg) [...seg.children].forEach(b=>b.classList.toggle("active", b.dataset.board===boardKind));
-  const h=document.querySelector("#addOverlay .modal h3"); if(h) h.textContent = boardKind==="show" ? "Add a movie or show" : "Add an anime";
-  const si=$("#searchInput"); if(si) si.placeholder = boardKind==="show" ? "Search e.g. Stranger Things, Dune…" : "Search e.g. Jujutsu Kaisen, One Piece…";
-  const gr=document.querySelector("#addOverlay .genre-row"); if(gr) gr.style.display = boardKind==="show"?"none":"";
-  const dr=document.querySelector("#addOverlay .day-row"); if(dr) dr.style.display = boardKind==="show"?"none":"";
-  const rb=$("#refreshBtn"); if(rb) rb.title = boardKind==="show"?"Refresh from TMDB":"Refresh schedules from AniList";
-  const ib=$("#importBtn"); if(ib) ib.style.display = boardKind==="show"?"none":"";   // import is AniList/MAL only
-  const res=$("#results"); if(res) res.innerHTML = boardKind==="show"
-    ? `<div class="hint">Start typing a movie or show title, or hit 🔥 Trending. Powered by TMDB.</div>`
+  const h=document.querySelector("#addOverlay .modal h3"); if(h) h.textContent = boardKind==="movie" ? "Add a movie" : (boardKind==="show" ? "Add a show" : "Add an anime");
+  const si=$("#searchInput"); if(si) si.placeholder = boardKind==="movie" ? "Search e.g. Dune, Oppenheimer…" : (boardKind==="show" ? "Search e.g. Stranger Things, The Bear…" : "Search e.g. Jujutsu Kaisen, One Piece…");
+  const gr=document.querySelector("#addOverlay .genre-row"); if(gr) gr.style.display = tmdb?"none":"";
+  const dr=document.querySelector("#addOverlay .day-row"); if(dr) dr.style.display = tmdb?"none":"";
+  const rb=$("#refreshBtn"); if(rb) rb.title = tmdb?"Refresh from TMDB":"Refresh schedules from AniList";
+  const ib=$("#importBtn"); if(ib) ib.style.display = tmdb?"none":"";   // import is AniList/MAL only
+  const res=$("#results"); if(res) res.innerHTML = tmdb
+    ? `<div class="hint">Start typing a ${boardKind==="movie"?"movie":"show"} title, or hit 🔥 Trending. Powered by TMDB.</div>`
     : `<div class="hint">Start typing a title, pick a genre, or hit <b>🔥 Trending</b>. Powered by AniList.</div>`;
 }
 function setBoard(k){
@@ -2421,13 +2436,14 @@ function setBoard(k){
   const lf=$("#listFilter"); if(lf) lf.value=""; const sf=$("#statusFilter"); if(sf) sf.value="all";
   const si=$("#searchInput"); if(si) si.value="";
   applyBoardUI(); render();
-  if(boardKind==="show") refreshTmdbSoon();   // lazily load TMDB data on first switch
+  if(isTmdbBoard()) refreshTmdbSoon();   // lazily load TMDB data on first switch
 }
 $("#boardSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; setBoard(b.dataset.board); });
 // 🎲 Pick a random "Plan to watch" title to settle the "what should we watch?" debate.
 function pickForUs(){
-  const pool=showsForUid(meId()).filter(s=>(s.kind||"anime")===boardKind && s.status==="Plan to watch");
-  if(!pool.length){ toast("No “Plan to watch” "+(boardKind==="show"?"shows":"anime")+" to pick from — add some first!"); return; }
+  const pool=showsForUid(meId()).filter(s=>onBoard(s) && s.status==="Plan to watch");
+  const noun = boardKind==="movie"?"movies":(boardKind==="show"?"shows":"anime");
+  if(!pool.length){ toast("No “Plan to watch” "+noun+" to pick from — add some first!"); return; }
   const pick=pool[Math.floor(Math.random()*pool.length)];
   toast("🎲 How about… "+pick.title);
   openEdit(pick.id);

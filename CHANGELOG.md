@@ -1,11 +1,14 @@
 # Changelog
 
-## 2026-10 — New: a "Shows" board for movies & TV
-- **Shows board.** A new **🎌 Anime / 🍿 Shows** toggle at the top switches the whole
-  board between your anime (AniList) and a separate board for non-anime movies &
-  live-action/Western TV from every service (Netflix, Prime, Disney+, etc.),
-  powered by **[TMDB](https://www.themoviedb.org)**. Your anime list is untouched —
-  it's a parallel board that shares the same account, profiles and views.
+## 2026-10 — New: Shows & Movies boards
+- **Three boards.** A new **🎌 Anime · 🍿 Shows · 🎬 Movies** toggle at the top
+  switches the whole board between your anime (AniList), live-action/Western **TV
+  series**, and **movies** — the last two from every service (Netflix, Prime,
+  Disney+, etc.), powered by **[TMDB](https://www.themoviedb.org)**. TV and movies
+  are separate boards (search is scoped to each), so films don't clutter your
+  series list. Your anime list is untouched — all three share the same account,
+  profiles and views. The **Movies** board shows **List & Poster** views only
+  (no Weekly — films have no weekly release cadence).
 - **Season + episode tracking:** multi-season series track **both** the season and
   the episode you're on — the card reads *On S2 · E3 / 13* with separate season and
   episode steppers (and both in Edit), and watch-sync shows each person's season &
@@ -19,7 +22,7 @@
   ratings. Currently-airing series get a **next-episode countdown**; every card
   shows a **where-to-stream** badge for your region (default US). Finished/Dropped
   sections, watch-sync, "Pick for us", and the Weekly/List/Poster views all work
-  on the Shows board too.
+  on the Shows and Movies boards too.
 - The dub tools, character avatars and AniList genre/trending/day browse stay on
   the Anime board, where they apply. Config lives in `CONFIG.TMDB` at the top of
   `index.html`; see `Docs/Setup guide (TMDB).md` to add your own free key.
