@@ -10,6 +10,10 @@
   the episode you're on — the card reads *On S2 · E3 / 13* with separate season and
   episode steppers (and both in Edit), and watch-sync shows each person's season &
   episode. Movies stay a single watched/plan item.
+- **At-a-glance on every card:** your spot (📍 S2 · E3) now shows in the List, Weekly
+  and Poster views, alongside the **latest episode out** (📺 Latest S2·E8) and a
+  **▸ behind** flag when new episodes are ahead of you — mirroring how the anime
+  cards show aired-episode info.
 - **Full tracking on the Shows side:** search any movie or series, read a preview
   (synopsis + where it streams) before adding, then track status, progress and
   ratings. Currently-airing series get a **next-episode countdown**; every card
@@ -19,6 +23,8 @@
 - The dub tools, character avatars and AniList genre/trending/day browse stay on
   the Anime board, where they apply. Config lives in `CONFIG.TMDB` at the top of
   `index.html`; see `Docs/Setup guide (TMDB).md` to add your own free key.
+- **Renamed** the browser tab / PWA title from "WatchLog · Anime Tracker" to just
+  **WatchLog**, since it now tracks TV too.
 
 ## 2026-10 — Fixes: schedules for large lists & keep your place on sync
 - **Schedules now load for every show, not just the first 50.** The live AniList

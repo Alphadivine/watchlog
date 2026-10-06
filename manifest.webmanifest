@@ -1,7 +1,7 @@
 {
-  "name": "WatchLog — Anime Tracker",
+  "name": "WatchLog",
   "short_name": "WatchLog",
-  "description": "Shared anime release tracker with English-dub release days.",
+  "description": "Shared anime & TV tracker — release days, dubs, and where to stream.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

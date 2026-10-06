@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="WatchLog" />
-<title>WatchLog · Anime Tracker</title>
+<title>WatchLog</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b6cff'/%3E%3Cstop offset='1' stop-color='%2322e0c6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='24' height='24' rx='5.5' fill='url(%23g)'/%3E%3Cg transform='translate(3.6,3.6) scale(0.7)'%3E%3Cpath d='M5 3.5h14a2.5 2.5 0 0 1 2.5 2.5v8a2.5 2.5 0 0 1-2.5 2.5h-6.3L8 20.5V16.5H5A2.5 2.5 0 0 1 2.5 14V6A2.5 2.5 0 0 1 5 3.5Z' fill='white'/%3E%3Cpath d='M10 7.5 L15.5 10.25 L10 13 Z' fill='%230b0b18'/%3E%3C/g%3E%3C/svg%3E" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-192.png" />
@@ -1190,16 +1190,18 @@ function tmdbInfo(s){
   }
   // TV
   const total=l.number_of_episodes||null;
+  const le=l.last_episode_to_air;
+  const lastEp = le ? {season:le.season_number, episode:le.episode_number} : null;   // latest episode out
   const ne=l.next_episode_to_air;
   if(ne && ne.air_date){
     const at=parseDate(ne.air_date);                 // TMDB gives a date only (no time)
     const d=at||new Date();
     return {cd:"upcoming", at: at?at.getTime():null, dayIndex:d.getDay(), dayName:DAYS[d.getDay()], time:null,
-      nextEp:{season:ne.season_number, episode:ne.episode_number}, airedEps:total, total, banner, streaming:prov.names, provLink:prov.link, seasons:l.number_of_seasons||null, runtime:null};
+      nextEp:{season:ne.season_number, episode:ne.episode_number}, lastEp, airedEps:total, total, banner, streaming:prov.names, provLink:prov.link, seasons:l.number_of_seasons||null, runtime:null};
   }
   const st=l.status;   // Returning Series | Ended | Canceled | In Production | Planned | Pilot
   const cd = (st==="Ended"||st==="Canceled") ? "finished" : (st==="Returning Series") ? "none" : "notyet";
-  return {cd, at:null, nextEp:null, dayIndex:null, dayName:null, time:null, airedEps:total, total, banner, streaming:prov.names, provLink:prov.link, seasons:l.number_of_seasons||null, runtime:null};
+  return {cd, at:null, nextEp:null, lastEp, dayIndex:null, dayName:null, time:null, airedEps:total, total, banner, streaming:prov.names, provLink:prov.link, seasons:l.number_of_seasons||null, runtime:null};
 }
 function weekSlotTv(s){
   if(s.status==="Finished") return {kind:"finished"};
@@ -1247,7 +1249,10 @@ function showCardTv(s){
   const dayTag=(!movie && a.dayName)?`<span class="tag day">📆 ${a.dayName}</span>`:"";
   const todayBadge=today?`<span class="tag todaytag">🔴 Today</span>`:"";
   const info= movie ? (a.runtime?`${a.runtime} min`:"") : (a.seasons?`${a.seasons} season${a.seasons>1?"s":""}${a.total?` · ${a.total} eps`:""}`:(a.total?`${a.total} eps`:""));
-  const behindBadge="";
+  const userSE={season:s.season||1, episode:s.progress||0};
+  const posTag=(!movie)?`<span class="tag day" title="Where you are">📍 S${userSE.season} · E${userSE.episode}</span>`:"";
+  const latestTag=(!movie && a.lastEp)?`<span class="tag" title="Latest episode out">📺 Latest S${a.lastEp.season}·E${a.lastEp.episode}</span>`:"";
+  const behindBadge=(!movie && a.lastEp && (userSE.season<a.lastEp.season || (userSE.season===a.lastEp.season && userSE.episode<a.lastEp.episode)))?`<span class="tag behind" title="New episodes are out ahead of you">▸ behind</span>`:"";
   const cover=s.cover?`style="background-image:url('${esc(s.cover)}')"`:"";
   const banner=a.banner?`<div class="banner-bg" style="background-image:url('${esc(a.banner)}')"></div>`:"";
   const social=syncRow(s);
@@ -1275,7 +1280,7 @@ function showCardTv(s){
     <div class="cover" ${cover}></div>
     <div class="body">
       <p class="title">${esc(s.title)}</p>
-      <div class="meta">${todayBadge}${typeTag}${dayTag}${behindBadge}${info?`<span class="tag">📺 ${esc(info)}</span>`:""}</div>
+      <div class="meta">${todayBadge}${typeTag}${posTag}${latestTag}${behindBadge}${dayTag}${info?`<span class="tag">📺 ${esc(info)}</span>`:""}</div>
       ${cd}
       ${streamPillsTv(a)}
       ${social}
@@ -1301,7 +1306,7 @@ function weekCardTv(s){
   else cd=`<span class="wk-cd done">between seasons</span>`;
   const today=a.cd==="upcoming" && isSameLocalDay(a.at);
   const cover=s.cover?`style="background-image:url('${esc(s.cover)}')"`:"";
-  const epLine= a.nextEp?epLabelTv(a.nextEp):(movie?"🎬 Movie":"");
+  const epLine= movie ? "🎬 Movie" : ("On S"+(s.season||1)+" · E"+(s.progress||0));
   return `<button class="wcard ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" title="${esc(s.title)} — tap for details">
     <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
     <div class="wcover" ${cover}></div>
@@ -1313,7 +1318,7 @@ function weekCardTv(s){
   </button>`;
 }
 function posterCardTv(s){
-  const a=tmdbInfo(s);
+  const a=tmdbInfo(s); const movie=(s.mediaType||"tv")==="movie";
   let badge="";
   if(a.cd==="upcoming" && a.at){ const f=fmtCountdown(a.at); badge=`<span class="pcd ${f.soon?"soon":""}">${f.txt}</span>`; }
   else if(a.cd==="finished") badge=`<span class="pcd done">done</span>`;
@@ -1324,7 +1329,7 @@ function posterCardTv(s){
     ${badge}
     ${today?`<span class="ptoday">🔴 Today</span>`:""}
     <span class="poster-meta"><span class="pt">${esc(s.title)}</span>
-      <span class="ps">${(s.mediaType||"tv")==="movie"?"Movie":(a.dayName?esc(a.dayName):(a.cd==="finished"?"Ended":""))}</span></span>
+      <span class="ps">${movie?"Movie":("S"+(s.season||1)+" · E"+(s.progress||0))}</span></span>
   </button>`;
 }
 // ---- TMDB search + add ----
