@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10 — Ended vs between-seasons split (Shows)
+- On the **Shows** board, series that have **finished airing** (TMDB "Ended"/
+  "Canceled") now get their own **✅ Ended** section, split out from shows that are
+  merely **💤 Between seasons** (returning, waiting on a new season). Applies to
+  both the Weekly and List views, so a wrapped-up show no longer sits next to one
+  that's just on hiatus.
+
 ## 2026-10 — Show password & movie/TV character avatars
 - **Show-password toggle** — a 👁 tap-to-reveal on the login password field (and the
   change-password field) so you can confirm what you typed before submitting.

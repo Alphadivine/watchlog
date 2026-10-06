@@ -739,8 +739,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06c";
+const APP_VERSION = "2026.10.06d";
 const WHATS_NEW = [
+  { v:"2026.10.06d", title:"Ended vs between-seasons split", items:[
+    "✅ <b>Ended shows split out</b> — on the Shows board, series that have <b>finished airing</b> (no more episodes) now get their own section, separate from shows that are just <b>between seasons</b> and waiting on a new one. Shows in both the Weekly and List views.",
+  ]},
   { v:"2026.10.06c", title:"Show password & movie/TV avatars", items:[
     "👁 <b>Show password</b> — a tap-to-reveal eye on the login (and change-password) field, so you can check what you typed.",
     "🎬 <b>Movie & TV character avatars</b> — in your profile you can now pick an avatar from a <b>movie or TV show's cast</b> (via TMDB), not just anime — search a title or tap one of yours, then tap a character. Great if you don't watch anime.",
@@ -1240,7 +1243,8 @@ function weekSlotTv(s){
   const a=tmdbInfo(s);
   if(a.cd==="upcoming" && a.dayIndex!=null) return {kind:"sub", dayIndex:a.dayIndex, at:a.at||0};
   if(a.cd==="notyet") return {kind:"soon"};
-  return {kind:"break"};
+  if(a.cd==="finished" && (s.mediaType||"tv")!=="movie") return {kind:"ended"};   // series finished airing
+  return {kind:"break"};                                                          // returning — between seasons
 }
 // Shared identity: "is this the same title?" — by AniList id for anime, TMDB id for shows.
 function showIdent(s){ return (s.kind||"anime")==="show" ? ("t:"+(s.mediaType||"tv")+":"+s.tmdbId) : ("a:"+s.anilistId); }
@@ -1705,7 +1709,7 @@ function renderWeek(){
   const today=new Date().getDay();
   const order=[0,1,2,3,4,5,6]; // Sun..Sat
   const byDay={}; order.forEach(d=>byDay[d]=[]);
-  const dubReleasing=[], onBreak=[], soon=[], finished=[], dropped=[];
+  const dubReleasing=[], onBreak=[], soon=[], ended=[], finished=[], dropped=[];
   list.forEach(s=>{
     const slot=weekSlot(s);
     if(slot.kind==="finished"){ finished.push(s); return; }
@@ -1714,7 +1718,8 @@ function renderWeek(){
     if(slot.kind==="sub"){ byDay[slot.dayIndex].push({s,at:slot.at}); return; }
     if(slot.kind==="dubTBD"){ dubReleasing.push(s); return; }     // dub coming, day not learned yet
     if(slot.kind==="soon"){ soon.push(s); return; }               // hasn't premiered yet
-    onBreak.push(s);                                              // on break / caught up
+    if(slot.kind==="ended"){ ended.push(s); return; }             // series finished airing (shows)
+    onBreak.push(s);                                              // between seasons / caught up
   });
   let html=`<div class="week">`;
   order.forEach(d=>{
@@ -1730,12 +1735,17 @@ function renderWeek(){
       <div class="week-loose">${renderGrouped(dubReleasing, weekCard)}</div>`;
   }
   if(onBreak.length){
-    html+=`<h3 class="sec-h">💤 On break <span class="sec-note">between seasons, waiting on a new season, or fully caught up</span></h3>
+    const breakNote = boardKind==="show" ? "returning series waiting on a new season, or fully caught up" : "between seasons, waiting on a new season, or fully caught up";
+    html+=`<h3 class="sec-h">💤 ${boardKind==="show"?"Between seasons":"On break"} <span class="sec-note">${breakNote}</span></h3>
       <div class="week-loose">${renderGrouped(onBreak, weekCard)}</div>`;
   }
   if(soon.length){
     html+=`<h3 class="sec-h">🔜 Coming soon <span class="sec-note">not yet aired — no episodes out yet</span></h3>
       <div class="week-loose">${renderGrouped(soon, weekCard)}</div>`;
+  }
+  if(ended.length){
+    html+=`<h3 class="sec-h">✅ Ended <span class="sec-note">finished airing — no more episodes coming</span></h3>
+      <div class="week-loose">${renderGrouped(ended, weekCard)}</div>`;
   }
   if(finished.length){
     html+=`<details class="finished-sec"><summary>✔ Finished · ${finished.length}</summary><div class="week-loose">${renderGrouped(finished, weekCard)}</div></details>`;
@@ -1753,8 +1763,18 @@ function renderList(){
   const active=list.filter(s=>s.status!=="Finished" && s.status!=="Dropped");
   const finished=list.filter(s=>s.status==="Finished");
   const dropped=list.filter(s=>s.status==="Dropped");
-  let html = active.length ? `<div class="grid-list">${renderGrouped(active, showCard)}</div>`
-                           : `<div class="hint" style="padding:24px 4px">Nothing active right now — see Finished / Dropped below.</div>`;
+  // On the Shows board, split "ended" series (no more episodes) out of the active grid.
+  let ended=[];
+  if(boardKind==="show"){
+    const endedSet=new Set(active.filter(s=>(s.mediaType||"tv")!=="movie" && tmdbInfo(s).cd==="finished"));
+    ended=[...endedSet];
+    var activeMain=active.filter(s=>!endedSet.has(s));
+  } else { var activeMain=active; }
+  let html = activeMain.length ? `<div class="grid-list">${renderGrouped(activeMain, showCard)}</div>`
+                           : (ended.length ? "" : `<div class="hint" style="padding:24px 4px">Nothing active right now — see Finished / Dropped below.</div>`);
+  if(ended.length){
+    html += `<details class="finished-sec" open><summary>✅ Ended · ${ended.length} <span style="font-weight:400;opacity:.7">— no more episodes</span></summary><div class="grid-list">${renderGrouped(ended, showCard)}</div></details>`;
+  }
   if(finished.length){
     html += `<details class="finished-sec"><summary>✔ Finished · ${finished.length}</summary><div class="grid-list">${renderGrouped(finished, showCard)}</div></details>`;
   }
