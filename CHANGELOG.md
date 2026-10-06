@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10 — Show password & movie/TV character avatars
+- **Show-password toggle** — a 👁 tap-to-reveal on the login password field (and the
+  change-password field) so you can confirm what you typed before submitting.
+- **Movie & TV character avatars** — the profile avatar picker now has a
+  **movie / TV** option alongside the anime one: search any film or series (or tap
+  one of your tracked titles) and pick a character from its cast (actor portraits
+  via TMDB). Handy for friends who don't watch anime.
+
+## 2026-10 — Movie card fixes
+- **Release dates on movie cards** — every movie now shows its release date, both
+  already-released (*📅 Mar 31, 1999*) and upcoming (*📅 Releases Dec 18, 2026*),
+  on the List and (as a year) Poster views.
+- **Fixed the watch-sync line on movies** — it was showing a meaningless *S1 E0*
+  (season/episode) for films. Movies now compare by **status** instead, so it
+  reads e.g. "You · Plan · Demon · Plan · in sync ✓".
+
 ## 2026-10 — New: Shows & Movies boards
 - **Three boards.** A new **🎌 Anime · 🍿 Shows · 🎬 Movies** toggle at the top
   switches the whole board between your anime (AniList), live-action/Western **TV

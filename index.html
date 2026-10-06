@@ -446,6 +446,10 @@
   .boardseg-wrap{display:flex;justify-content:center;margin:2px 0 14px}
   .boardseg{font-size:15px}
   .boardseg button{padding:9px 20px;font-weight:700}
+  .pw-wrap{position:relative}
+  .pw-wrap input{width:100%;padding-right:40px}
+  .pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:4px;opacity:.7}
+  .pw-eye:hover{opacity:1}
 </style>
 </head>
 <body>
@@ -621,7 +625,10 @@
       <label class="fld">Email</label>
       <input type="text" id="authEmail" placeholder="you@example.com" autocomplete="username" />
       <label class="fld">Password</label>
-      <input type="password" id="authPw" placeholder="••••••••" autocomplete="current-password" />
+      <div class="pw-wrap">
+        <input type="password" id="authPw" placeholder="••••••••" autocomplete="current-password" />
+        <button type="button" class="pw-eye" id="authPwEye" title="Show password" aria-label="Show password">👁</button>
+      </div>
       <div id="authErr" style="color:var(--pink);font-size:12.5px;margin-top:10px;min-height:16px"></div>
       <button class="linklike" id="authToggle" style="margin-top:8px">New here? <b>Create an account</b></button>
       <button class="linklike" id="authForgot" style="margin-top:6px;display:block">Forgot password?</button>
@@ -649,6 +656,12 @@
       <div class="avgrid" id="avatarGrid"></div>
       <label class="fld">…or paste an image URL</label>
       <input type="text" id="profUrl" placeholder="https://…/me.png" autocomplete="off" />
+      <label class="fld">🎬 …or use a movie / TV character</label>
+      <div class="charpick">
+        <input type="text" id="tmdbCharSearch" placeholder="Search a movie or show to see its cast…" autocomplete="off" />
+        <div class="char-myshows" id="tmdbCharMine"></div>
+        <div class="char-results" id="tmdbCharResults"><div class="hint" style="font-size:12px;margin:0">Search a movie or show above, or tap one of yours, then pick a cast member.</div></div>
+      </div>
       <label class="fld">🎭 …or use an anime character</label>
       <div class="charpick">
         <input type="text" id="charSearch" placeholder="Search an anime to see its characters…" autocomplete="off" />
@@ -661,7 +674,10 @@
       <div id="pwRow" style="display:none">
         <label class="fld">🔐 Change password</label>
         <div style="display:flex;gap:8px">
-          <input type="password" id="newPw" placeholder="New password (6+ chars)" autocomplete="new-password" style="flex:1" />
+          <div class="pw-wrap" style="flex:1">
+            <input type="password" id="newPw" placeholder="New password (6+ chars)" autocomplete="new-password" />
+            <button type="button" class="pw-eye" id="newPwEye" title="Show password" aria-label="Show password">👁</button>
+          </div>
           <button class="btn ghost sm" id="changePwBtn" type="button">Update</button>
         </div>
         <div id="pwMsg" style="font-size:12px;margin-top:5px;min-height:14px"></div>
@@ -723,8 +739,16 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06a";
+const APP_VERSION = "2026.10.06c";
 const WHATS_NEW = [
+  { v:"2026.10.06c", title:"Show password & movie/TV avatars", items:[
+    "👁 <b>Show password</b> — a tap-to-reveal eye on the login (and change-password) field, so you can check what you typed.",
+    "🎬 <b>Movie & TV character avatars</b> — in your profile you can now pick an avatar from a <b>movie or TV show's cast</b> (via TMDB), not just anime — search a title or tap one of yours, then tap a character. Great if you don't watch anime.",
+  ]},
+  { v:"2026.10.06b", title:"Movie card fixes", items:[
+    "📅 <b>Release dates on movies</b> — every movie card now shows its release date, whether it's already out (📅 Mar 31, 1999) or still upcoming (📅 Releases Dec 18, 2026).",
+    "🔧 <b>No more 'S1 E0' on movies</b> — the watch-sync line on a movie now shows each person's status (e.g. 'Plan') instead of a season/episode that never made sense for a film.",
+  ]},
   { v:"2026.10.06a", title:"New: Shows & Movies boards", items:[
     "🍿🎬 <b>Three boards now</b> — a <b>🎌 Anime · 🍿 Shows · 🎬 Movies</b> toggle up top. Shows and Movies are powered by TMDB and cover everything on Netflix, Prime, Disney+, etc. Search any title, add it, and track status, progress and ratings just like anime.",
     "📺 <b>Same features, show data</b> — next-episode countdowns for currently-airing series, a 'where to stream' badge on each card, Finished/Dropped sections, watch-sync, 'Pick for us' and all three views work on the new boards too.",
@@ -952,12 +976,15 @@ function watchersOf(aniId){ return shows.filter(s=> String(s.anilistId)===String
 // Watch-sync: on a show more than one person tracks, show where each of them is.
 function syncRow(s){
   const isShow=(s.kind||"anime")==="show";
+  const isMovie=isShow && (s.mediaType||"tv")==="movie";
   const byOwner=new Map();
   watchersOfS(s).forEach(w=>{ const o=ownerOf(w); if(o!=null && !byOwner.has(o)) byOwner.set(o, w); });
   if(byOwner.size<2) return "";                     // only meaningful when it's shared
   const me=meId();
-  const keyOf=w=> isShow ? ((w.season||1)+"-"+(w.progress||0)) : String(w.progress||0);
-  const labelOf=w=> isShow ? ("S"+(w.season||1)+" E"+(w.progress||0)) : ("Ep "+(w.progress||0));
+  // Movies have no episode progress — compare by status instead (e.g. both "Plan to watch").
+  const MOV_LBL={"Finished":"Seen","Plan to watch":"Plan","Watching":"Watching","Caught up":"Caught up","Dropped":"Dropped"};
+  const keyOf=w=> isMovie ? (w.status||"") : (isShow ? ((w.season||1)+"-"+(w.progress||0)) : String(w.progress||0));
+  const labelOf=w=> isMovie ? (MOV_LBL[w.status]||w.status||"") : (isShow ? ("S"+(w.season||1)+" E"+(w.progress||0)) : ("Ep "+(w.progress||0)));
   const keys=[...byOwner.values()].map(keyOf);
   const inSync = keys.every(k=>k===keys[0]);
   const chips=[...byOwner.entries()]
@@ -1224,6 +1251,7 @@ function infoOf(s){ return (s.kind||"anime")==="show" ? tmdbInfo(s) : airInfo(s.
 
 // ---- Show cards (mirror the anime cards, minus the dub layer) ----
 function epLabelTv(ne){ return ne ? ("S"+ne.season+" E"+ne.episode) : ""; }
+function fmtDate(ms){ try{ return new Date(ms).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}); }catch(e){ return ""; } }
 // Episodes in a given season (from TMDB's season list), if known.
 function seasonEpCount(s, seasonNo){
   const l=tlive.get(tmdbKey(s)); if(!l || !l.seasons) return null;
@@ -1253,6 +1281,7 @@ function showCardTv(s){
   const dayTag=(!movie && a.dayName)?`<span class="tag day">📆 ${a.dayName}</span>`:"";
   const todayBadge=today?`<span class="tag todaytag">🔴 Today</span>`:"";
   const info= movie ? (a.runtime?`${a.runtime} min`:"") : (a.seasons?`${a.seasons} season${a.seasons>1?"s":""}${a.total?` · ${a.total} eps`:""}`:(a.total?`${a.total} eps`:""));
+  const relTag = (movie && a.at) ? `<span class="tag day">📅 ${a.cd==="notyet"?"Releases ":""}${esc(fmtDate(a.at))}</span>` : "";
   const userSE={season:s.season||1, episode:s.progress||0};
   const posTag=(!movie)?`<span class="tag day" title="Where you are">📍 S${userSE.season} · E${userSE.episode}</span>`:"";
   const latestTag=(!movie && a.lastEp)?`<span class="tag" title="Latest episode out">📺 Latest S${a.lastEp.season}·E${a.lastEp.episode}</span>`:"";
@@ -1284,7 +1313,7 @@ function showCardTv(s){
     <div class="cover" ${cover}></div>
     <div class="body">
       <p class="title">${esc(s.title)}</p>
-      <div class="meta">${todayBadge}${typeTag}${posTag}${latestTag}${behindBadge}${dayTag}${info?`<span class="tag">📺 ${esc(info)}</span>`:""}</div>
+      <div class="meta">${todayBadge}${typeTag}${relTag}${posTag}${latestTag}${behindBadge}${dayTag}${info?`<span class="tag">${movie?"⏱️":"📺"} ${esc(info)}</span>`:""}</div>
       ${cd}
       ${streamPillsTv(a)}
       ${social}
@@ -1333,7 +1362,7 @@ function posterCardTv(s){
     ${badge}
     ${today?`<span class="ptoday">🔴 Today</span>`:""}
     <span class="poster-meta"><span class="pt">${esc(s.title)}</span>
-      <span class="ps">${movie?"Movie":("S"+(s.season||1)+" · E"+(s.progress||0))}</span></span>
+      <span class="ps">${movie?("Movie"+(a.at?" · "+new Date(a.at).getFullYear():"")):("S"+(s.season||1)+" · E"+(s.progress||0))}</span></span>
   </button>`;
 }
 // ---- TMDB search + add (scoped to the current board: TV vs Movie) ----
@@ -2487,7 +2516,7 @@ document.addEventListener("click",e=>{ if(e.target.closest("#emptyLoginBtn")) op
 
 /* ----- Auth modal ----- */
 let authMode="signin";
-function openAuth(){ authMode="signin"; renderAuthMode(); $("#authErr").textContent=""; $("#authEmail").value=""; $("#authPw").value=""; $("#authOverlay").classList.add("show"); setTimeout(()=>$("#authEmail").focus(),50); }
+function openAuth(){ authMode="signin"; renderAuthMode(); $("#authErr").textContent=""; $("#authEmail").value=""; $("#authPw").value=""; const pe=$("#authPw"); if(pe) pe.type="password"; const pb=$("#authPwEye"); if(pb){ pb.textContent="👁"; pb.title="Show password"; } $("#authOverlay").classList.add("show"); setTimeout(()=>$("#authEmail").focus(),50); }
 function authMsg(text, ok){ const e=$("#authErr"); e.style.color = ok ? "#4de6a8" : "var(--pink)"; e.textContent=text; }
 function renderAuthMode(){
   $("#authTitle").textContent = authMode==="signin"?"Log in":"Create account";
@@ -2543,6 +2572,8 @@ function openProfile(){
   $("#newPw").value=""; $("#pwMsg").textContent="";
   $("#charSearch").value=""; renderCharMyShows();
   $("#charResults").innerHTML=`<div class="hint" style="font-size:12px;margin:0">Search a show above, or tap one of yours, then pick a character.</div>`;
+  $("#tmdbCharSearch").value=""; renderTmdbCharMine();
+  $("#tmdbCharResults").innerHTML=`<div class="hint" style="font-size:12px;margin:0">Search a movie or show above, or tap one of yours, then pick a cast member.</div>`;
   $("#profileOverlay").classList.add("show"); setTimeout(()=>$("#profName").focus(),50);
 }
 /* ---- Anime-character avatar picker (browse by anime → pick a character) ---- */
@@ -2589,6 +2620,62 @@ $("#charResults").addEventListener("click",e=>{
   const show=e.target.closest(".charshow"); if(show){ loadCast(show.dataset.ani,show.dataset.t); return; }
   const opt=e.target.closest(".charopt"); if(opt) pickCharAvatar(opt.dataset.img);
 });
+
+/* ---- Movie / TV character avatar picker (TMDB cast) — for non-anime users ---- */
+function renderTmdbCharMine(){
+  const box=$("#tmdbCharMine"); if(!box) return;
+  const seen=new Set(), uniq=[];
+  showsForUid(meId()).forEach(s=>{ if((s.kind||"anime")!=="show") return; const k=(s.mediaType||"tv")+":"+s.tmdbId; if(!seen.has(k)){ seen.add(k); uniq.push(s); } });
+  box.innerHTML=uniq.slice(0,12).map(s=>`<button type="button" class="charshow tcharshow" data-id="${esc(String(s.tmdbId))}" data-type="${esc(s.mediaType||"tv")}" data-t="${esc(s.title)}">${esc(s.title)}</button>`).join("");
+}
+let tmdbCharTimer=null;
+function tmdbCharSearchShows(){
+  const q=$("#tmdbCharSearch").value.trim(); clearTimeout(tmdbCharTimer);
+  if(q.length<2) return;
+  tmdbCharTimer=setTimeout(async()=>{
+    const box=$("#tmdbCharResults"); box.innerHTML=`<div style="text-align:center;padding:14px"><span class="spinner"></span></div>`;
+    if(!tmdbReady()){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">Movie/TV search isn't available (no TMDB key).</div>`; return; }
+    try{
+      const data=await tmdbGet(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false&language=en-US&page=1`);
+      const media=(data.results||[]).filter(x=>x.media_type==="movie"||x.media_type==="tv").slice(0,12);
+      if(!media.length){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">No movies or shows found.</div>`; return; }
+      box.innerHTML=`<div class="hint" style="font-size:11px;margin:0 0 6px">Pick a title:</div><div class="char-showrow">`+
+        media.map(m=>{ const t=m.title||m.name||"Untitled"; return `<button type="button" class="charshow tcharshow" data-id="${m.id}" data-type="${m.media_type}" data-t="${esc(t)}">${esc(t)}</button>`; }).join("")+`</div>`;
+    }catch(e){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">Search failed: ${esc(e.message)}</div>`; }
+  },350);
+}
+async function loadTmdbCast(type,id,title){
+  const box=$("#tmdbCharResults");
+  box.innerHTML=`<div style="text-align:center;padding:14px"><span class="spinner"></span><div class="hint" style="font-size:12px;margin-top:6px">Loading ${esc(title||"cast")}…</div></div>`;
+  try{
+    const d=await tmdbGet(`/${type}/${id}/credits?language=en-US`);
+    const cast=(d.cast||[]).filter(c=>c.profile_path).slice(0,36);
+    if(!cast.length){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">No cast photos for this title. Try another.</div>`; return; }
+    box.innerHTML=`<div class="hint" style="font-size:11px;margin:0 0 6px">${esc(title||"Cast")} — tap a character:</div>
+      <div class="char-grid">`+cast.map(c=>{ const img=tmdbImg(c.profile_path,"w185"); const label=c.character?`${c.character} — ${c.name}`:c.name;
+        return `<button type="button" class="charopt" data-img="${esc(img)}" title="${esc(label)}"><span style="background-image:url('${esc(img)}')"></span></button>`; }).join("")+`</div>`;
+  }catch(e){ box.innerHTML=`<div class="hint" style="font-size:12px;margin:0">Couldn't load cast: ${esc(e.message)}</div>`; }
+}
+$("#tmdbCharSearch").addEventListener("input",tmdbCharSearchShows);
+$("#tmdbCharMine").addEventListener("click",e=>{ const b=e.target.closest(".tcharshow"); if(b) loadTmdbCast(b.dataset.type,b.dataset.id,b.dataset.t); });
+$("#tmdbCharResults").addEventListener("click",e=>{
+  const show=e.target.closest(".tcharshow"); if(show){ loadTmdbCast(show.dataset.type,show.dataset.id,show.dataset.t); return; }
+  const opt=e.target.closest(".charopt"); if(opt) pickCharAvatar(opt.dataset.img);
+});
+
+/* ---- Show/hide password toggles ---- */
+function wirePwToggle(inputId, btnId){
+  const inp=$("#"+inputId), btn=$("#"+btnId); if(!inp||!btn) return;
+  btn.addEventListener("click",()=>{
+    const show = inp.type==="password";
+    inp.type = show ? "text":"password";
+    btn.textContent = show ? "🙈":"👁";
+    btn.title = show ? "Hide password":"Show password";
+    inp.focus();
+  });
+}
+wirePwToggle("authPw","authPwEye");
+wirePwToggle("newPw","newPwEye");
 // Download the current user's list as a JSON backup.
 function doExport(){
   const mine=showsForUid(meId()).map(s=>{
