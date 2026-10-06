@@ -560,6 +560,7 @@
         <select class="filter" id="editStatus" style="width:100%">
           <option>Watching</option><option>Caught up</option><option>Plan to watch</option><option>Finished</option><option>Dropped</option>
         </select>
+        <div id="seasonRow" style="display:none"><label class="fld" style="margin-top:0">Season you're on</label><input type="number" id="editSeason" min="1" value="1" /></div>
         <div class="two-col">
           <div id="progCol"><label class="fld" id="progLbl">Episode you're on</label><input type="number" id="editProgress" min="0" value="0" /></div>
           <div><label class="fld">Your rating</label><div id="editStars" class="stars interactive big"></div></div>
@@ -726,6 +727,7 @@ const WHATS_NEW = [
   { v:"2026.10.06a", title:"New: a Shows board for movies & TV", items:[
     "🍿 <b>Shows board</b> — use the <b>🎌 Anime / 🍿 Shows</b> toggle up top to switch to a whole separate board for non-anime movies &amp; TV (Netflix, Prime, Disney+, anything). Search any title, add it, and track status, progress and ratings just like anime.",
     "📺 <b>Same features, show data</b> — next-episode countdowns for currently-airing series, a 'where to stream' badge on each card, Finished/Dropped sections, watch-sync, 'Pick for us' and the weekly view all work on the Shows board too.",
+    "🔢 <b>Season + episode tracking</b> — for multi-season series the card shows where you are as <b>S2 · E3</b>, with separate season and episode steppers (and both fields in Edit). Watch-sync shows each person's season &amp; episode.",
     "🎙️ The dub tools, character avatars and AniList browse stay on the Anime board, where they belong. Your anime list is untouched.",
   ]},
   { v:"2026.10.05e", title:"Fixes: schedules for big lists & no more lost place", items:[
@@ -945,15 +947,18 @@ function applyAccent(){
 function watchersOf(aniId){ return shows.filter(s=> String(s.anilistId)===String(aniId) && ownerOf(s)!=null); }
 // Watch-sync: on a show more than one person tracks, show where each of them is.
 function syncRow(s){
+  const isShow=(s.kind||"anime")==="show";
   const byOwner=new Map();
-  watchersOfS(s).forEach(w=>{ const o=ownerOf(w); if(o!=null && !byOwner.has(o)) byOwner.set(o, w.progress||0); });
+  watchersOfS(s).forEach(w=>{ const o=ownerOf(w); if(o!=null && !byOwner.has(o)) byOwner.set(o, w); });
   if(byOwner.size<2) return "";                     // only meaningful when it's shared
   const me=meId();
-  const eps=[...byOwner.values()];
-  const inSync = eps.every(e=>e===eps[0]);
+  const keyOf=w=> isShow ? ((w.season||1)+"-"+(w.progress||0)) : String(w.progress||0);
+  const labelOf=w=> isShow ? ("S"+(w.season||1)+" E"+(w.progress||0)) : ("Ep "+(w.progress||0));
+  const keys=[...byOwner.values()].map(keyOf);
+  const inSync = keys.every(k=>k===keys[0]);
   const chips=[...byOwner.entries()]
     .sort((a,b)=> a[0]===me?-1 : b[0]===me?1 : displayName(a[0]).localeCompare(displayName(b[0])))
-    .map(([o,ep])=>`<span class="syncchip" title="${esc(o===me?"You":displayName(o))} — episode ${ep}">${avatarHTML(o,"sm")}<span class="syncnm">${esc(o===me?"You":displayName(o))}</span><span class="syncep">Ep ${ep}</span></span>`)
+    .map(([o,w])=>`<span class="syncchip" title="${esc(o===me?"You":displayName(o))} — ${esc(labelOf(w))}">${avatarHTML(o,"sm")}<span class="syncnm">${esc(o===me?"You":displayName(o))}</span><span class="syncep">${esc(labelOf(w))}</span></span>`)
     .join("");
   return `<div class="syncrow" title="Where each of you is">${chips}${inSync?`<span class="syncok">in sync ✓</span>`:""}</div>`;
 }
@@ -1213,6 +1218,12 @@ function infoOf(s){ return (s.kind||"anime")==="show" ? tmdbInfo(s) : airInfo(s.
 
 // ---- Show cards (mirror the anime cards, minus the dub layer) ----
 function epLabelTv(ne){ return ne ? ("S"+ne.season+" E"+ne.episode) : ""; }
+// Episodes in a given season (from TMDB's season list), if known.
+function seasonEpCount(s, seasonNo){
+  const l=tlive.get(tmdbKey(s)); if(!l || !l.seasons) return null;
+  const se=l.seasons.find(x=>x.season_number===Number(seasonNo));
+  return (se && se.episode_count) || null;
+}
 function streamPillsTv(a){
   if(!a.streaming || !a.streaming.length) return "";
   const pills=a.streaming.slice(0,4).map(n=> a.provLink
@@ -1236,8 +1247,7 @@ function showCardTv(s){
   const dayTag=(!movie && a.dayName)?`<span class="tag day">📆 ${a.dayName}</span>`:"";
   const todayBadge=today?`<span class="tag todaytag">🔴 Today</span>`:"";
   const info= movie ? (a.runtime?`${a.runtime} min`:"") : (a.seasons?`${a.seasons} season${a.seasons>1?"s":""}${a.total?` · ${a.total} eps`:""}`:(a.total?`${a.total} eps`:""));
-  const behind=(!movie && a.airedEps!=null && (s.progress||0)<a.airedEps)?a.airedEps-(s.progress||0):0;
-  const behindBadge=behind>0?`<span class="tag behind" title="You're ${behind} episode${behind>1?"s":""} behind">▸ ${behind} behind</span>`:"";
+  const behindBadge="";
   const cover=s.cover?`style="background-image:url('${esc(s.cover)}')"`:"";
   const banner=a.banner?`<div class="banner-bg" style="background-image:url('${esc(a.banner)}')"></div>`:"";
   const social=syncRow(s);
@@ -1248,9 +1258,17 @@ function showCardTv(s){
   const addMine=(loggedIn() && !iOwnThis)
     ? (iHaveIt?`<span class="onlist" title="Already on your list">✓ on your list</span>`
              :`<button class="btn ghost sm addmine" data-act="addmine" data-id="${s.id}">＋ Add to mine</button>`):"";
-  const progRow = (!movie && !ro)
-    ? `<div class="prog"><span class="lbl">On ep</span><span class="stepper"><button data-act="dec" data-id="${s.id}">−</button><span>${s.progress||0}${a.total?" / "+a.total:""}</span><button data-act="inc" data-id="${s.id}">＋</button></span></div>`
-    : (!movie ? `<div class="prog"><span class="lbl">On ep</span><b style="font-size:13px">${s.progress||0}${a.total?" / "+a.total:""}</b></div>` : "");
+  let progRow="";
+  if(!movie){
+    const seasonNo=s.season||1; const ep=s.progress||0; const epc=seasonEpCount(s,seasonNo);
+    if(!ro){
+      progRow=`<div class="prog"><span class="lbl">On</span>
+        <span class="stepper" title="Season"><button data-act="sdec" data-id="${s.id}">−</button><span>S${seasonNo}</span><button data-act="sinc" data-id="${s.id}">＋</button></span>
+        <span class="stepper" title="Episode this season"><button data-act="dec" data-id="${s.id}">−</button><span>E${ep}${epc?" / "+epc:""}</span><button data-act="inc" data-id="${s.id}">＋</button></span></div>`;
+    } else {
+      progRow=`<div class="prog"><span class="lbl">On</span><b style="font-size:13px">S${seasonNo} · E${ep}${epc?" / "+epc:""}</b></div>`;
+    }
+  }
   return `<div class="show ${today?"airing-today":""}" data-id="${s.id}">
     ${banner}
     <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
@@ -1953,7 +1971,7 @@ async function claimLegacy(){
 function normalize(r){
   const isShow = r.kind==="show" || r.tmdb_id!=null || r.tmdbId!=null || r.media_type!=null;
   const base={...r, anilistId:(r.anilist_id!=null?r.anilist_id:r.anilistId), kind:isShow?"show":"anime"};
-  if(isShow){ base.tmdbId=(r.tmdb_id!=null?r.tmdb_id:r.tmdbId); base.mediaType=(r.media_type||r.mediaType||"tv"); }
+  if(isShow){ base.tmdbId=(r.tmdb_id!=null?r.tmdb_id:r.tmdbId); base.mediaType=(r.media_type||r.mediaType||"tv"); base.season=(r.season!=null?r.season:1); }
   return base;
 }
 // Copy a show you spotted on someone else's list onto your own (fresh progress).
@@ -1969,6 +1987,13 @@ async function addFromShow(id){
 }
 
 /* ---------------- Mutations ---------------- */
+// Shows track season + episode; the episode stepper (inc/dec) changes the episode
+// within the current season. Season has its own stepper (sinc/sdec).
+async function bumpSeason(id,delta){
+  const s=shows.find(x=>x.id===id); if(!s || (s.kind||"anime")!=="show") return;
+  s.season=Math.max(1,(s.season||1)+delta); render();
+  try{ await store.update(id,{season:s.season}); }catch(e){ toast(saveErr(e)); }
+}
 async function bump(id,delta){
   const s=shows.find(x=>x.id===id); if(!s) return;
   const a=airInfo(s.anilistId); const before=s.progress||0;
@@ -2112,17 +2137,20 @@ function openEdit(id){
     const movie=(s.mediaType||"tv")==="movie";
     $("#editStatus").value=s.status;
     $("#editProgress").value=s.progress||0;
+    $("#editSeason").value=s.season||1;
     editRating=s.rating||0; renderEditStars();
     editDelayEp=null; editDelayOn=false;
     $("#editNotes").value=s.notes||"";
     setEditAnimeFieldsVisible(false);
+    const sr=$("#seasonRow"); if(sr) sr.style.display=movie?"none":"";
     const pc=$("#progCol"); if(pc) pc.style.display=movie?"none":"";
-    const pl=$("#progLbl"); if(pl) pl.textContent="Episode you're on";
+    const pl=$("#progLbl"); if(pl) pl.textContent="Episode (this season)";
     fillDetailsShow(s);
     $("#editOverlay").classList.add("show");
     return;
   }
   setEditAnimeFieldsVisible(true);
+  const sr=$("#seasonRow"); if(sr) sr.style.display="none";
   const pc=$("#progCol"); if(pc) pc.style.display=""; const pl=$("#progLbl"); if(pl) pl.textContent="Episode you're on";
   $("#editStatus").value=s.status;
   $("#editProgress").value=s.progress||0;
@@ -2147,6 +2175,7 @@ async function saveEdit(){
   const wasFinished=s.status==="Finished";
   if((s.kind||"anime")==="show"){
     const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating};
+    if((s.mediaType||"tv")!=="movie") patch.season=Math.max(1,Number($("#editSeason").value)||1);
     Object.assign(s,patch); render();
     $("#editOverlay").classList.remove("show");
     if(!wasFinished && patch.status==="Finished") confetti();
@@ -2413,6 +2442,7 @@ document.addEventListener("click",e=>{
   const b=e.target.closest("[data-act]"); if(!b)return;
   const id=b.dataset.id, act=b.dataset.act;
   if(act==="inc") bump(id,1); else if(act==="dec") bump(id,-1);
+  else if(act==="sinc") bumpSeason(id,1); else if(act==="sdec") bumpSeason(id,-1);
   else if(act==="dubinc") setDub(id,1); else if(act==="dubdec") setDub(id,-1);
   else if(act==="addmine") addFromShow(id);
   else if(act==="edit") openEdit(id); else if(act==="cal") addToCalendar(id);

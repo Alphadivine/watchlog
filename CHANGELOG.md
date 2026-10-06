@@ -6,6 +6,10 @@
   live-action/Western TV from every service (Netflix, Prime, Disney+, etc.),
   powered by **[TMDB](https://www.themoviedb.org)**. Your anime list is untouched —
   it's a parallel board that shares the same account, profiles and views.
+- **Season + episode tracking:** multi-season series track **both** the season and
+  the episode you're on — the card reads *On S2 · E3 / 13* with separate season and
+  episode steppers (and both in Edit), and watch-sync shows each person's season &
+  episode. Movies stay a single watched/plan item.
 - **Full tracking on the Shows side:** search any movie or series, read a preview
   (synopsis + where it streams) before adding, then track status, progress and
   ratings. Currently-airing series get a **next-episode countdown**; every card
