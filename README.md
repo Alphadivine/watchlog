@@ -1,6 +1,6 @@
 # 📺 WatchLog
 
-A shared anime release tracker for you and your friends. See what airs each day, track your progress, know when the **English dub** drops, and browse what everyone else is watching — all in one place, synced live.
+A shared anime release tracker for you and your friends. See what airs each day, track your progress, know when the **English dub** drops, and browse what everyone else is watching — all in one place, synced live. A separate **🍿 Shows** board tracks non-anime movies & TV (Netflix, Prime, Disney+, …) too.
 
 WatchLog is a single self-contained HTML file. No build step, no framework, no server of your own — it runs entirely in the browser and stores shared data in a free [Firebase](https://firebase.google.com) (Firestore) project.
 
@@ -10,6 +10,7 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 
 ## ✨ Features
 
+- **🎌 Anime & 🍿 Shows boards** — a toggle at the top switches between your anime (AniList) and a separate board for non-anime movies & live-action/Western TV from every service, powered by [TMDB](https://www.themoviedb.org). Search any title, preview it, and track status, progress and ratings; currently-airing series get a next-episode countdown and every card shows where to stream it. Both boards share your account, profiles and views.
 - **Auto schedule from [AniList](https://anilist.co)** — add a show and it pulls the air day, air time, and a live next-episode countdown automatically.
 - **Local timezones** — everyone sees air times converted to their own timezone from UTC.
 - **Three views** — a Sun→Sat weekly calendar, a detailed list, and a poster wall.
@@ -37,6 +38,7 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 
 - **Frontend:** one `index.html` (HTML + CSS + vanilla JS, no dependencies bundled — the Firebase SDK loads from Google's CDN).
 - **Anime data:** the public [AniList GraphQL API](https://docs.anilist.co) (no key required).
+- **Movie/TV data (Shows board):** [TMDB](https://www.themoviedb.org) via a free read token in `CONFIG.TMDB` — see `Docs/Setup guide (TMDB).md`.
 - **Storage & sync:** a Firebase **Firestore** database with live `onSnapshot` updates, and **Firebase Auth** (email/password) for accounts. The app ships the Firebase *web config* (apiKey etc.), which is designed to be public — access is governed by the Firestore security rules in `Firebase/firestore.rules`.
 
 There is no backend to run — hosting is just serving a static file.
@@ -65,7 +67,8 @@ See **`Docs/Setup guide (Firebase).md`** for the full walkthrough. In brief:
    };
    ```
 
-5. **Deploy** the `Site/` folder to GitHub Pages (or any static host). Share the link; everyone who opens it and logs in shares the same board. Use `?board=NAME` on the URL to run separate groups off the same database.
+5. *(Optional — for the 🍿 Shows board)* add a free **TMDB** read token to `CONFIG.TMDB` in `index.html`. See **`Docs/Setup guide (TMDB).md`**. The Anime board works without it.
+6. **Deploy** the `Site/` folder to GitHub Pages (or any static host). Share the link; everyone who opens it and logs in shares the same board. Use `?board=NAME` on the URL to run separate groups off the same database.
 
 > The Firebase web config is safe to commit to a public repo — your data is
 > protected by the Firestore rules, not by hiding the config.
@@ -116,7 +119,7 @@ calendar); sub airings from AniList are exact.
 ---
 
 ## 🙏 Credits
-Anime data from **[AniList](https://anilist.co)**. Database, auth, and realtime by **[Firebase](https://firebase.google.com)**. Built as a fun project for tracking anime with friends. 📺✨
+Anime data from **[AniList](https://anilist.co)**. Movie & TV data from **[TMDB](https://www.themoviedb.org)** (this product uses the TMDB API but is not endorsed or certified by TMDB). Database, auth, and realtime by **[Firebase](https://firebase.google.com)**. Built as a fun project for tracking anime (and everything else) with friends. 📺✨
 
 ---
 

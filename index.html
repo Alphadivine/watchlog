@@ -443,6 +443,9 @@
     .wordmark{font-size:18px}
     .brand small{display:none}
   }
+  .boardseg-wrap{display:flex;justify-content:center;margin:2px 0 14px}
+  .boardseg{font-size:15px}
+  .boardseg button{padding:9px 20px;font-weight:700}
 </style>
 </head>
 <body>
@@ -465,6 +468,12 @@
 
 <main>
   <div id="profilesBar" class="profiles"></div>
+  <div class="boardseg-wrap">
+    <div class="seg boardseg" id="boardSeg">
+      <button data-board="anime" class="active">🎌 Anime</button>
+      <button data-board="show">🍿 Shows</button>
+    </div>
+  </div>
   <div class="controls">
     <div class="seg" id="viewSeg">
       <button data-view="week" class="active">📅 Weekly</button>
@@ -552,9 +561,10 @@
           <option>Watching</option><option>Caught up</option><option>Plan to watch</option><option>Finished</option><option>Dropped</option>
         </select>
         <div class="two-col">
-          <div><label class="fld">Episode you're on</label><input type="number" id="editProgress" min="0" value="0" /></div>
+          <div id="progCol"><label class="fld" id="progLbl">Episode you're on</label><input type="number" id="editProgress" min="0" value="0" /></div>
           <div><label class="fld">Your rating</label><div id="editStars" class="stars interactive big"></div></div>
         </div>
+        <div id="animeOnlyFields">
         <label class="fld">🎙️ Latest dub episode out <span style="color:var(--faint);font-weight:400">(shared with your group)</span></label>
         <input type="number" id="editDubOut" min="0" placeholder="e.g. 8 — leave blank if no dub yet" />
         <label class="fld">🎙️ Dub release day <span style="color:var(--faint);font-weight:400">(shared — leave on Auto to learn it from drops)</span></label>
@@ -566,6 +576,7 @@
         <button type="button" class="btn ghost sm" id="editDelay" style="width:100%;justify-content:center">🚩 Mark this week's episode delayed</button>
         <label class="fld">🗂️ Series group <span style="color:var(--faint);font-weight:400">(optional — type the same name on each part to group them)</span></label>
         <input type="text" id="editSeries" placeholder="e.g. Demon Slayer" autocomplete="off" />
+        </div>
         <label class="fld">Notes</label>
         <textarea id="editNotes" rows="2" placeholder="e.g. watching with the group Fridays, up to the culling game arc…"></textarea>
       </div>
@@ -693,6 +704,14 @@ const CONFIG = {
     messagingSenderId: "1033199729071",
     appId:             "1:1033199729071:web:041b2b035573c639bc175a"
   },
+  // TMDB (The Movie Database) powers the non-anime "Shows" board — movies & TV from
+  // every service. The read token is a public client credential (like the Firebase
+  // config above); access is read-only. Region controls the "where to stream" data.
+  TMDB: {
+    token:  "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIyNmYyNGE0YzMxMzRjOWU2NDlkNDY3MDVjYjU2Mzc5ZSIsIm5iZiI6MTc5MTMwMjU0My4zMDgsInN1YiI6IjZhYzUxYjhmYTc0NDZmODU3OWMyMDc1OSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.5REyM6rx-bC4XtlfAfuKWmrXtInaupLKU_F-JlEsouw",
+    img:    "https://image.tmdb.org/t/p/",
+    region: "US"
+  },
 };
 // Which shared board this page uses. Everyone on the same board sees the same list.
 // Add ?board=friends to the URL to use a different shared board.
@@ -702,8 +721,13 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.05e";
+const APP_VERSION = "2026.10.06a";
 const WHATS_NEW = [
+  { v:"2026.10.06a", title:"New: a Shows board for movies & TV", items:[
+    "🍿 <b>Shows board</b> — use the <b>🎌 Anime / 🍿 Shows</b> toggle up top to switch to a whole separate board for non-anime movies &amp; TV (Netflix, Prime, Disney+, anything). Search any title, add it, and track status, progress and ratings just like anime.",
+    "📺 <b>Same features, show data</b> — next-episode countdowns for currently-airing series, a 'where to stream' badge on each card, Finished/Dropped sections, watch-sync, 'Pick for us' and the weekly view all work on the Shows board too.",
+    "🎙️ The dub tools, character avatars and AniList browse stay on the Anime board, where they belong. Your anime list is untouched.",
+  ]},
   { v:"2026.10.05e", title:"Fixes: schedules for big lists & no more lost place", items:[
     "🗓️ <b>All your shows get their schedule now</b> — on boards with more than 50 shows, everything past the first 50 was missing its air day/countdown and landed under 'On break' (that's why <i>The Vermilion Mask</i> wasn't showing under 'Coming soon'). WatchLog now loads them all.",
     "📌 <b>Stops losing your place</b> — when the app re-synced in the background it jumped you back to the top and closed any card you'd expanded. It now keeps your scroll position and expanded series open through a sync.",
@@ -853,7 +877,9 @@ let store = LocalStore;
 
 /* ---------------- State ---------------- */
 let shows = [];          // stored rows
-const live = new Map();  // anilistId -> live airing data
+const live = new Map();  // anilistId -> live airing data (anime, from AniList)
+const tlive = new Map(); // "tv:ID"/"movie:ID" -> live detail (shows, from TMDB)
+let boardKind = (()=>{ try{ return localStorage.getItem("watchlog:boardKind")||"anime"; }catch(e){ return "anime"; } })();  // "anime" | "show"
 let currentView = "week";
 let statusFilter = "all";
 let listFilter = "";
@@ -920,7 +946,7 @@ function watchersOf(aniId){ return shows.filter(s=> String(s.anilistId)===String
 // Watch-sync: on a show more than one person tracks, show where each of them is.
 function syncRow(s){
   const byOwner=new Map();
-  watchersOf(s.anilistId).forEach(w=>{ const o=ownerOf(w); if(o!=null && !byOwner.has(o)) byOwner.set(o, w.progress||0); });
+  watchersOfS(s).forEach(w=>{ const o=ownerOf(w); if(o!=null && !byOwner.has(o)) byOwner.set(o, w.progress||0); });
   if(byOwner.size<2) return "";                     // only meaningful when it's shared
   const me=meId();
   const eps=[...byOwner.values()];
@@ -1110,6 +1136,7 @@ function dubComplete(s){ const tot=totalEps(s.anilistId), dl=dubLatest(s.anilist
      {kind:"dubTBD"}                   // dub coming but no day known yet
      {kind:"break"} | {kind:"finished"} */
 function weekSlot(s){
+  if((s.kind||"anime")==="show") return weekSlotTv(s);
   if(s.status==="Finished") return {kind:"finished"};
   if(s.status==="Dropped") return {kind:"dropped"};
   const ds=dubSchedule(s.anilistId);
@@ -1121,6 +1148,240 @@ function weekSlot(s){
   if(a.cd==="notyet") return {kind:"soon"};     // hasn't premiered yet (vs. on break / caught up)
   return {kind:"break"};
 }
+
+/* ======================= SHOWS board (TMDB) =======================
+   The non-anime board — movies & live-action/Western TV from every service.
+   Data comes from TMDB instead of AniList. It reuses all the shared chrome
+   (accounts, profiles, lists, ratings, watch-sync, Finished/Dropped, the three
+   views) and simply swaps the data source + card. There's no dub concept here. */
+const TMDB_BASE="https://api.themoviedb.org/3";
+function tmdbHeaders(){ return { Authorization:"Bearer "+((CONFIG.TMDB&&CONFIG.TMDB.token)||""), Accept:"application/json" }; }
+function tmdbReady(){ return !!(CONFIG.TMDB && CONFIG.TMDB.token); }
+async function tmdbGet(path){
+  const r=await fetch(TMDB_BASE+path,{headers:tmdbHeaders()});
+  if(!r.ok) throw new Error("TMDB "+r.status);
+  return r.json();
+}
+function tmdbImg(path,size){ return path?((CONFIG.TMDB.img||"https://image.tmdb.org/t/p/")+(size||"w342")+path):""; }
+function tmdbKey(s){ return (s.mediaType||"tv")+":"+s.tmdbId; }
+// Flatten TMDB's region "watch/providers" into a simple list of streaming names + a link.
+function tmdbProviders(det){
+  const res=((det["watch/providers"]||{}).results||{})[(CONFIG.TMDB.region||"US")]||{};
+  const names=[]; (res.flatrate||[]).forEach(p=>{ if(!names.includes(p.provider_name)) names.push(p.provider_name); });
+  return { names, link: res.link||null };
+}
+// Live info for a show, shaped like airInfo() so shared code can use either.
+function tmdbInfo(s){
+  const l=tlive.get(tmdbKey(s));
+  const empty={cd:"unknown",at:null,nextEp:null,dayIndex:null,dayName:null,time:null,airedEps:null,total:null,banner:null,streaming:[],seasons:null,runtime:null};
+  if(!l) return empty;
+  const banner = l.backdrop_path ? tmdbImg(l.backdrop_path,"w780") : null;
+  const prov = l._prov || {names:[],link:null};
+  if((s.mediaType||"tv")==="movie"){
+    const rel=parseDate(l.release_date);
+    const released = rel ? rel.getTime()<=Date.now() : false;
+    return {cd: rel?(released?"finished":"notyet"):"unknown", at: rel?rel.getTime():null, nextEp:null, dayIndex:null, dayName:null, time:null,
+      airedEps:null, total:1, banner, streaming:prov.names, provLink:prov.link, seasons:null, runtime:l.runtime||null};
+  }
+  // TV
+  const total=l.number_of_episodes||null;
+  const ne=l.next_episode_to_air;
+  if(ne && ne.air_date){
+    const at=parseDate(ne.air_date);                 // TMDB gives a date only (no time)
+    const d=at||new Date();
+    return {cd:"upcoming", at: at?at.getTime():null, dayIndex:d.getDay(), dayName:DAYS[d.getDay()], time:null,
+      nextEp:{season:ne.season_number, episode:ne.episode_number}, airedEps:total, total, banner, streaming:prov.names, provLink:prov.link, seasons:l.number_of_seasons||null, runtime:null};
+  }
+  const st=l.status;   // Returning Series | Ended | Canceled | In Production | Planned | Pilot
+  const cd = (st==="Ended"||st==="Canceled") ? "finished" : (st==="Returning Series") ? "none" : "notyet";
+  return {cd, at:null, nextEp:null, dayIndex:null, dayName:null, time:null, airedEps:total, total, banner, streaming:prov.names, provLink:prov.link, seasons:l.number_of_seasons||null, runtime:null};
+}
+function weekSlotTv(s){
+  if(s.status==="Finished") return {kind:"finished"};
+  if(s.status==="Dropped") return {kind:"dropped"};
+  const a=tmdbInfo(s);
+  if(a.cd==="upcoming" && a.dayIndex!=null) return {kind:"sub", dayIndex:a.dayIndex, at:a.at||0};
+  if(a.cd==="notyet") return {kind:"soon"};
+  return {kind:"break"};
+}
+// Shared identity: "is this the same title?" — by AniList id for anime, TMDB id for shows.
+function showIdent(s){ return (s.kind||"anime")==="show" ? ("t:"+(s.mediaType||"tv")+":"+s.tmdbId) : ("a:"+s.anilistId); }
+function watchersOfS(s){ const k=showIdent(s); return shows.filter(x=>ownerOf(x)!=null && showIdent(x)===k); }
+function groupRatingS(s){ const rs=watchersOfS(s).map(x=>x.rating).filter(r=>r>0); if(!rs.length) return null; return {avg:rs.reduce((a,b)=>a+b,0)/rs.length, n:rs.length}; }
+// Unified accessor so hero/sort/week placement work regardless of board.
+function infoOf(s){ return (s.kind||"anime")==="show" ? tmdbInfo(s) : airInfo(s.anilistId); }
+
+// ---- Show cards (mirror the anime cards, minus the dub layer) ----
+function epLabelTv(ne){ return ne ? ("S"+ne.season+" E"+ne.episode) : ""; }
+function streamPillsTv(a){
+  if(!a.streaming || !a.streaming.length) return "";
+  const pills=a.streaming.slice(0,4).map(n=> a.provLink
+    ? `<a class="watchpill" href="${esc(a.provLink)}" target="_blank" rel="noopener" title="Where to watch (via TMDB/JustWatch)">▶ ${esc(n)}</a>`
+    : `<span class="watchpill">▶ ${esc(n)}</span>`).join("");
+  return `<div class="watch">${pills}</div>`;
+}
+function showCardTv(s){
+  const a=tmdbInfo(s); const ro=isReadOnly(); const now=Date.now(); const movie=(s.mediaType||"tv")==="movie";
+  let cd="";
+  if(s.status==="Dropped") cd=`<div class="countdown done">✖ Dropped</div>`;
+  else if(s.status==="Finished") cd=`<div class="countdown done">✔ Finished</div>`;
+  else if(a.cd==="upcoming" && a.at>now){ const f=fmtCountdown(a.at); cd=`<div class="countdown ${f.soon?"soon":""}">📺 ${epLabelTv(a.nextEp)} in ${f.txt}</div>`; }
+  else if(a.cd==="upcoming"){ cd=`<div class="countdown soon">🟢 ${epLabelTv(a.nextEp)} out now</div>`; }
+  else if(a.cd==="notyet") cd=`<div class="countdown done">🕓 Not yet released</div>`;
+  else if(a.cd==="finished") cd=`<div class="countdown done">✔ ${movie?"Released":"Ended"}</div>`;
+  else if(a.cd==="none") cd=`<div class="countdown done">💤 Between seasons</div>`;
+  else cd=`<div class="countdown done"><span class="spinner" style="width:12px;height:12px;border-width:2px"></span> loading…</div>`;
+  const today=a.cd==="upcoming" && isSameLocalDay(a.at);
+  const typeTag=`<span class="tag">${movie?"🎬 Movie":"📺 Series"}</span>`;
+  const dayTag=(!movie && a.dayName)?`<span class="tag day">📆 ${a.dayName}</span>`:"";
+  const todayBadge=today?`<span class="tag todaytag">🔴 Today</span>`:"";
+  const info= movie ? (a.runtime?`${a.runtime} min`:"") : (a.seasons?`${a.seasons} season${a.seasons>1?"s":""}${a.total?` · ${a.total} eps`:""}`:(a.total?`${a.total} eps`:""));
+  const behind=(!movie && a.airedEps!=null && (s.progress||0)<a.airedEps)?a.airedEps-(s.progress||0):0;
+  const behindBadge=behind>0?`<span class="tag behind" title="You're ${behind} episode${behind>1?"s":""} behind">▸ ${behind} behind</span>`:"";
+  const cover=s.cover?`style="background-image:url('${esc(s.cover)}')"`:"";
+  const banner=a.banner?`<div class="banner-bg" style="background-image:url('${esc(a.banner)}')"></div>`:"";
+  const social=syncRow(s);
+  const gr=groupRatingS(s);
+  const ratingRow=`<div class="ratingrow">${stars(s.rating||0,!ro,s.id)}${gr?`<span class="grp" title="Group average from ${gr.n} rating${gr.n>1?'s':''}">avg ★ ${gr.avg.toFixed(1)}</span>`:""}</div>`;
+  const iOwnThis=ownerOf(s)===meId();
+  const iHaveIt=showsForUid(meId()).some(x=>showIdent(x)===showIdent(s));
+  const addMine=(loggedIn() && !iOwnThis)
+    ? (iHaveIt?`<span class="onlist" title="Already on your list">✓ on your list</span>`
+             :`<button class="btn ghost sm addmine" data-act="addmine" data-id="${s.id}">＋ Add to mine</button>`):"";
+  const progRow = (!movie && !ro)
+    ? `<div class="prog"><span class="lbl">On ep</span><span class="stepper"><button data-act="dec" data-id="${s.id}">−</button><span>${s.progress||0}${a.total?" / "+a.total:""}</span><button data-act="inc" data-id="${s.id}">＋</button></span></div>`
+    : (!movie ? `<div class="prog"><span class="lbl">On ep</span><b style="font-size:13px">${s.progress||0}${a.total?" / "+a.total:""}</b></div>` : "");
+  return `<div class="show ${today?"airing-today":""}" data-id="${s.id}">
+    ${banner}
+    <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
+    <div class="cover" ${cover}></div>
+    <div class="body">
+      <p class="title">${esc(s.title)}</p>
+      <div class="meta">${todayBadge}${typeTag}${dayTag}${behindBadge}${info?`<span class="tag">📺 ${esc(info)}</span>`:""}</div>
+      ${cd}
+      ${streamPillsTv(a)}
+      ${social}
+      ${ratingRow}
+      ${progRow}
+      ${s.notes?`<div class="notes">📝 ${esc(s.notes)}</div>`:""}
+      <div class="rowbtns" style="margin-top:8px">
+        ${addMine}
+        ${ro?"":`<button class="icon-btn" data-act="edit" data-id="${s.id}" title="Edit">✏️</button>`}
+        ${s.site_url?`<a class="icon-btn" href="${esc(s.site_url)}" target="_blank" title="TMDB page">🔗</a>`:""}
+      </div>
+    </div></div>`;
+}
+function weekCardTv(s){
+  const a=tmdbInfo(s); const now=Date.now(); const movie=(s.mediaType||"tv")==="movie"; const slot=weekSlotTv(s);
+  let cd="";
+  if(slot.kind==="dropped") cd=`<span class="wk-cd done">✖ dropped</span>`;
+  else if(slot.kind==="finished") cd=`<span class="wk-cd done">✔ ${movie?"seen":"finished"}</span>`;
+  else if(a.cd==="upcoming" && a.at>now){ const f=fmtCountdown(a.at); cd=`<span class="wk-cd ${f.soon?"soon":""}">⏳ ${f.txt}</span>`; }
+  else if(a.cd==="upcoming") cd=`<span class="wk-cd soon">🟢 out now</span>`;
+  else if(slot.kind==="soon") cd=`<span class="wk-cd done">🔜 not yet out</span>`;
+  else if(a.cd==="finished") cd=`<span class="wk-cd done">✔ ${movie?"released":"ended"}</span>`;
+  else cd=`<span class="wk-cd done">between seasons</span>`;
+  const today=a.cd==="upcoming" && isSameLocalDay(a.at);
+  const cover=s.cover?`style="background-image:url('${esc(s.cover)}')"`:"";
+  const epLine= a.nextEp?epLabelTv(a.nextEp):(movie?"🎬 Movie":"");
+  return `<button class="wcard ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" title="${esc(s.title)} — tap for details">
+    <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
+    <div class="wcover" ${cover}></div>
+    <div class="wbody">
+      <div class="wtitle">${esc(s.title)}</div>
+      <div class="wmeta">${cd}</div>
+      ${epLine?`<div class="wep">${epLine}</div>`:""}
+    </div>
+  </button>`;
+}
+function posterCardTv(s){
+  const a=tmdbInfo(s);
+  let badge="";
+  if(a.cd==="upcoming" && a.at){ const f=fmtCountdown(a.at); badge=`<span class="pcd ${f.soon?"soon":""}">${f.txt}</span>`; }
+  else if(a.cd==="finished") badge=`<span class="pcd done">done</span>`;
+  const bg=s.cover?`background-image:url('${esc(s.cover)}')`:"";
+  const today=a.cd==="upcoming" && isSameLocalDay(a.at);
+  return `<button class="poster ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" style="${bg}" title="${esc(s.title)}">
+    <span class="poster-grad"></span>
+    ${badge}
+    ${today?`<span class="ptoday">🔴 Today</span>`:""}
+    <span class="poster-meta"><span class="pt">${esc(s.title)}</span>
+      <span class="ps">${(s.mediaType||"tv")==="movie"?"Movie":(a.dayName?esc(a.dayName):(a.cd==="finished"?"Ended":""))}</span></span>
+  </button>`;
+}
+// ---- TMDB search + add ----
+async function tmdbSearch(q){
+  const box=$("#results"); const seq=++searchSeq;
+  if(!q){ box.innerHTML=`<div class="hint">Start typing a movie or show title. Powered by TMDB.</div>`; return; }
+  if(!tmdbReady()){ box.innerHTML=`<div class="hint">No TMDB key configured yet.</div>`; return; }
+  box.innerHTML=`<div style="text-align:center;padding:24px"><span class="spinner"></span></div>`;
+  try{
+    const data=await tmdbGet(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false&language=en-US&page=1`);
+    if(seq!==searchSeq) return;
+    const media=(data.results||[]).filter(x=>x.media_type==="movie"||x.media_type==="tv");
+    if(!media.length){ box.innerHTML=`<div class="hint">No results for “${esc(q)}”.</div>`; return; }
+    renderResultsTv(media);
+  }catch(e){ box.innerHTML=`<div class="hint">Search failed: ${esc(e.message)}.</div>`; }
+}
+async function tmdbTrending(){
+  const box=$("#results"); searchSeq++;
+  box.innerHTML=`<div style="text-align:center;padding:24px"><span class="spinner"></span><div class="hint" style="margin-top:8px">Loading what's popular…</div></div>`;
+  try{
+    const data=await tmdbGet(`/trending/all/week?language=en-US`);
+    renderResultsTv((data.results||[]).filter(x=>x.media_type==="movie"||x.media_type==="tv"), "🔥 Trending this week:");
+  }catch(e){ box.innerHTML=`<div class="hint">Couldn't load trending: ${esc(e.message)}.</div>`; }
+}
+function renderResultsTv(media, heading){
+  const box=$("#results");
+  const mine=showsForUid(meId());
+  const have=new Set(mine.filter(s=>(s.kind||"anime")==="show").map(s=>(s.mediaType||"tv")+":"+s.tmdbId));
+  const head=heading?`<div class="hint" style="margin-bottom:4px">${esc(heading)}</div>`:"";
+  box.innerHTML=head+media.map((m,i)=>{
+    const t=m.title||m.name||"Untitled";
+    const type=m.media_type;
+    const yr=(m.release_date||m.first_air_date||"").slice(0,4);
+    const added=have.has(type+":"+m.id);
+    const sub=[type==="movie"?"🎬 Movie":"📺 Series", yr].filter(Boolean).join(" · ");
+    const payload={tmdbId:m.id, mediaType:type, title:t, cover:tmdbImg(m.poster_path,"w342"), site_url:`https://www.themoviedb.org/${type}/${m.id}`};
+    return `<div class="result ${added?"added":""}" style="animation-delay:${Math.min(i*30,300)}ms" data-tm='${esc(JSON.stringify(payload))}'>
+      <img src="${esc(tmdbImg(m.poster_path,"w154")||"")}" alt="" loading="lazy"/>
+      <div class="rbody"><div class="rt">${esc(t)}</div><div class="rm">${esc(sub)}${added?" · ✔ added":""}</div></div>
+      <button class="rinfo" data-act="preview" title="Read description (doesn't add)">ⓘ</button></div>`;
+  }).join("");
+}
+async function addTmdb(m){
+  if(!loggedIn()){ usingCloud?openAuth():openProfile(); return; }
+  const owner=displayName(meId());
+  const base={kind:"show", tmdb_id:m.tmdbId, media_type:m.mediaType, title:m.title, cover:m.cover, site_url:m.site_url, status:"Plan to watch", progress:0, notes:"", owner};
+  const row = usingCloud ? base : {...base, owner:"me"};
+  try{
+    const saved=await store.add(row);
+    if(!shows.some(x=>x.id===saved.id)) shows.push(normalizeShow(saved));
+    render(); refreshTmdbSoon();
+    toast("Added “"+m.title+"”");
+  }catch(e){ toast("Add failed: "+e.message); }
+}
+// Stored show rows hydrate through normalize() (it auto-detects the show fields).
+function normalizeShow(r){ return normalize(r); }
+// ---- TMDB live refresh (one detail call per unique show, deduped) ----
+async function refreshTmdb(quiet){
+  if(!tmdbReady()) return;
+  const showRows=shows.filter(s=>(s.kind||"anime")==="show");
+  const uniq=new Map(); showRows.forEach(s=>{ uniq.set(tmdbKey(s),{id:s.tmdbId,type:s.mediaType||"tv"}); });
+  if(!uniq.size) return;
+  try{
+    for(const [key,info] of uniq){
+      try{
+        const det=await tmdbGet(`/${info.type}/${info.id}?language=en-US&append_to_response=watch/providers`);
+        det._prov=tmdbProviders(det);
+        tlive.set(key,det);
+      }catch(e){ /* skip a single failed title */ }
+    }
+    render();
+  }catch(e){ if(!quiet) toast("Couldn't reach TMDB — check connection"); }
+}
+let tmdbTimer=null;
+function refreshTmdbSoon(quiet){ clearTimeout(tmdbTimer); tmdbTimer=setTimeout(()=>refreshTmdb(quiet), 400); }
 
 /* ---------------- Season grouping ----------------
    Collapse "same show, different season" into one series card. Detection is by
@@ -1170,6 +1431,7 @@ function buildFranchise(){
 // The grouping key for a show: a manual "series" tag wins, then an AniList
 // franchise cluster, then the title-normalised key.
 function seriesKeyOf(s){
+  if((s.kind||"anime")==="show") return "sv:"+s.id;   // shows aren't franchise-grouped (each entry is its own)
   const man=(s.series!=null?String(s.series):"").trim();
   if(man) return "m:"+man.toLowerCase();
   const r=franchise.get(String(s.anilistId));
@@ -1214,10 +1476,11 @@ function renderGrouped(list, renderOne){
 /* ---------------- Rendering ---------------- */
 function visibleShows(){
   const q=listFilter.trim().toLowerCase();
-  let list=ownerShows().filter(s=> (statusFilter==="all"||s.status===statusFilter)
+  let list=ownerShows().filter(s=> (s.kind||"anime")===boardKind
+    && (statusFilter==="all"||s.status===statusFilter)
     && (!q || (s.title||"").toLowerCase().includes(q)));
   const BIG=8.64e15;
-  const atOf=s=>{ const a=airInfo(s.anilistId); return a.at||BIG; };
+  const atOf=s=>{ const a=infoOf(s); return a.at||BIG; };
   if(sortBy==="soonest") list.sort((x,y)=>atOf(x)-atOf(y));
   else if(sortBy==="title") list.sort((x,y)=>(x.title||"").localeCompare(y.title||""));
   else if(sortBy==="status") list.sort((x,y)=>(x.status||"").localeCompare(y.status||"")|| (x.title||"").localeCompare(y.title||""));
@@ -1225,6 +1488,7 @@ function visibleShows(){
   return list;
 }
 function showCard(s){
+  if((s.kind||"anime")==="show") return showCardTv(s);
   const a = airInfo(s.anilistId);
   const ro = isReadOnly();
   const now=Date.now();
@@ -1307,7 +1571,7 @@ function showCard(s){
 // The soonest upcoming episode across all tracked shows, for the hero banner.
 function nextUp(){
   let best=null;
-  ownerShows().forEach(s=>{ const a=airInfo(s.anilistId);
+  ownerShows().forEach(s=>{ if((s.kind||"anime")!==boardKind) return; const a=infoOf(s);
     if(a.cd==="upcoming" && a.at>Date.now() && (!best || a.at<best.a.at)) best={s,a}; });
   return best;
 }
@@ -1319,20 +1583,27 @@ function heroHTML(){
   const img=banner||cover;
   const isCover=!banner && !!cover;          // …shown as a blurred backdrop so it reads clean, not blurry
   const airingToday=isSameLocalDay(n.a.at);
-  const dub=dubLatest(n.s.anilistId);
+  let sub;
+  if((n.s.kind||"anime")==="show"){
+    sub = `${epLabelTv(n.a.nextEp)}${n.a.dayName?" • "+n.a.dayName:""}`;
+  }else{
+    const dub=dubLatest(n.s.anilistId);
+    sub = `Episode ${n.a.nextEp} • ${n.a.dayName}${n.a.time?" at "+n.a.time+(TZ_ABBR?" "+TZ_ABBR:""):""}${dub?" &nbsp;·&nbsp; 🎙️ Dub up to Ep "+dub.ep:""}`;
+  }
   return `<div class="hero">
     ${img?`<div class="hero-img ${isCover?"hero-img-cv":""}" style="background-image:url('${esc(img)}')"></div>`:""}
     <div class="hero-shade"></div>
     <div class="hero-inner">
       <div class="hero-kicker">${airingToday?"🔴 Airing today · Next up":"⏭️ Next up"}</div>
       <div class="hero-title">${esc(n.s.title)}</div>
-      <div class="hero-sub">Episode ${n.a.nextEp} • ${n.a.dayName}${n.a.time?" at "+n.a.time+(TZ_ABBR?" "+TZ_ABBR:""):""}${dub?" &nbsp;·&nbsp; 🎙️ Dub up to Ep "+dub.ep:""}</div>
+      <div class="hero-sub">${sub}</div>
       <div class="hero-cd ${f.soon?"soon":""}">⏳ ${f.txt}</div>
     </div></div>`;
 }
 
 // Compact card for the weekly calendar — scannable at a glance, tap for full details.
 function weekCard(s){
+  if((s.kind||"anime")==="show") return weekCardTv(s);
   const a=airInfo(s.anilistId);
   const now=Date.now();
   const delayed=isDelayed(s.anilistId);
@@ -1395,7 +1666,7 @@ function renderWeek(){
       <div class="cardlist">${items.length?items.map(i=>weekCard(i.s)).join(""):`<div class="empty-day">—</div>`}</div></div>`;
   });
   html+=`</div>`;
-  html+=`<div class="dub-legend"><span class="dubdot"></span> Purple = estimated English-dub day (learned from when the dub was last bumped, or set by hand). Sub airings are exact.</div>`;
+  if(boardKind==="anime") html+=`<div class="dub-legend"><span class="dubdot"></span> Purple = estimated English-dub day (learned from when the dub was last bumped, or set by hand). Sub airings are exact.</div>`;
   if(dubReleasing.length){
     html+=`<h3 class="sec-h">🎙️ Dub still releasing <span class="sec-note">dub day not learned yet — bump the dub counter after a new episode, or set the day in Edit</span></h3>
       <div class="week-loose">${renderGrouped(dubReleasing, weekCard)}</div>`;
@@ -1435,6 +1706,7 @@ function renderList(){
   root.innerHTML=html;
 }
 function posterCard(s){
+  if((s.kind||"anime")==="show") return posterCardTv(s);
   const a=airInfo(s.anilistId);
   const dub=dubLatest(s.anilistId);
   let badge="";
@@ -1464,6 +1736,9 @@ function emptyState(){
   if(isReadOnly() && viewingUid) return `<div class="empty-state"><div class="big">🍿</div>
     <h2 style="margin:0 0 6px">${esc(displayName(viewingUid))}'s list is empty</h2>
     <p>Nothing here yet — check back later.</p></div>`;
+  if(boardKind==="show") return `<div class="empty-state"><div class="big">🍿</div>
+    <h2 style="margin:0 0 6px">No shows yet</h2>
+    <p>Hit <b>＋ Add show</b> to search movies &amp; TV from every service and start tracking.</p></div>`;
   return `<div class="empty-state"><div class="big">📺</div>
     <h2 style="margin:0 0 6px">Your list is empty</h2>
     <p>Hit <b>＋ Add anime</b> to search AniList and start tracking release days.</p></div>`;
@@ -1474,7 +1749,7 @@ function renderProfiles(){
   if(!owners.length){ bar.innerHTML=""; return; }
   // Count unique anime per person (seasons of the same show count once).
   const counts={}, seenSeries={};
-  shows.forEach(s=>{ const o=ownerOf(s); if(o==null) return; const sk=o+"|"+seriesKeyOf(s); if(seenSeries[sk]) return; seenSeries[sk]=1; counts[o]=(counts[o]||0)+1; });
+  shows.forEach(s=>{ if((s.kind||"anime")!==boardKind) return; const o=ownerOf(s); if(o==null) return; const sk=o+"|"+seriesKeyOf(s); if(seenSeries[sk]) return; seenSeries[sk]=1; counts[o]=(counts[o]||0)+1; });
   const me=meId();
   const active=viewingUid||me;
   const chips = owners.map(o=>{
@@ -1578,7 +1853,7 @@ async function reload(){
     shows=(await store.list()).map(normalize);
     if(usingCloud && myUid) await claimLegacy();
     if(viewingUid==null) viewingUid = loggedIn() ? meId() : (allOwnerIds()[0]||null);
-    render(); refreshLiveSoon();
+    render(); refreshLiveSoon(); refreshTmdbSoon(true);
   }catch(e){ console.error(e); toast("Load error: "+e.message); }
 }
 
@@ -1586,6 +1861,7 @@ async function reload(){
 let searchTimer=null, searchSeq=0;
 function currentGenre(){ const g=$("#genreSel"); return g&&g.value?g.value:null; }
 async function doSearch(){
+  if(boardKind==="show") return tmdbSearch($("#searchInput").value.trim());
   const q=$("#searchInput").value.trim(); const box=$("#results"); const g=currentGenre();
   if(!q && g) return browseGenre();
   if(!q){ box.innerHTML=`<div class="hint">Start typing a title, or pick a genre to browse. Powered by AniList.</div>`; return; }
@@ -1674,11 +1950,20 @@ async function claimLegacy(){
   const orphans=shows.filter(s=>!s.user_id && s.owner===myProfile.name);
   for(const s of orphans){ s.user_id=myUid; try{ await store.update(s.id,{user_id:myUid}); }catch(e){} }
 }
-function normalize(r){ return {...r, anilistId:r.anilist_id!=null?r.anilist_id:r.anilistId}; }
+function normalize(r){
+  const isShow = r.kind==="show" || r.tmdb_id!=null || r.tmdbId!=null || r.media_type!=null;
+  const base={...r, anilistId:(r.anilist_id!=null?r.anilist_id:r.anilistId), kind:isShow?"show":"anime"};
+  if(isShow){ base.tmdbId=(r.tmdb_id!=null?r.tmdb_id:r.tmdbId); base.mediaType=(r.media_type||r.mediaType||"tv"); }
+  return base;
+}
 // Copy a show you spotted on someone else's list onto your own (fresh progress).
 async function addFromShow(id){
   if(!loggedIn()){ usingCloud?openAuth():openProfile(); return; }
   const src=shows.find(x=>x.id===id); if(!src) return;
+  if((src.kind||"anime")==="show"){
+    if(showsForUid(meId()).some(x=>showIdent(x)===showIdent(src))){ toast("Already on your list"); return; }
+    await addTmdb({tmdbId:src.tmdbId, mediaType:src.mediaType, title:src.title, cover:src.cover, site_url:src.site_url}); return;
+  }
   if(showsForUid(meId()).some(x=>String(x.anilistId)===String(src.anilistId))){ toast("Already on your list"); return; }
   await addShow({id:Number(src.anilistId), title:src.title, cover:src.cover, site_url:src.site_url||src.siteUrl});
 }
@@ -1738,12 +2023,65 @@ function fillDetails(s){
     $("#detailStream").innerHTML=streams.map(x=>`<a class="watchpill" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(streamLabel(x.site))}</a>`).join("");
   }).catch(()=>{ if(editingKey===s.id){ $("#detailMeta").innerHTML=`<span class="hint">Details unavailable</span>`; $("#detailSyn").innerHTML=""; } });
 }
-let editingKey=null, previewMedia=null;
+// Fill the detail modal for a show (movie/TV) from TMDB.
+const tdetailsCache=new Map();
+async function loadTmdbDetails(type,id){
+  const key=type+":"+id;
+  if(tdetailsCache.has(key)) return tdetailsCache.get(key);
+  const det=await tmdbGet(`/${type}/${id}?language=en-US&append_to_response=watch/providers`);
+  det._prov=tmdbProviders(det); tdetailsCache.set(key,det); return det;
+}
+function fillDetailsShow(s){
+  $("#detailCover").style.backgroundImage = s.cover?`url('${s.cover}')`:"";
+  $("#detailHero").style.backgroundImage="";
+  $("#detailMeta").innerHTML=`<span class="spinner" style="width:13px;height:13px;border-width:2px"></span>`;
+  $("#detailGenres").innerHTML=""; $("#detailStudio").innerHTML=""; $("#detailStream").innerHTML="";
+  $("#detailSyn").innerHTML=`<p class="hint">Loading details…</p>`;
+  loadTmdbDetails(s.mediaType||"tv", s.tmdbId).then(m=>{
+    if(!m || editingKey!==s.id) return;
+    const movie=(s.mediaType||"tv")==="movie";
+    if(m.poster_path) $("#detailCover").style.backgroundImage=`url('${tmdbImg(m.poster_path,"w500")}')`;
+    if(m.backdrop_path) $("#detailHero").style.backgroundImage=`linear-gradient(180deg,rgba(16,16,38,.35),rgba(16,16,38,.92)),url('${tmdbImg(m.backdrop_path,"w780")}')`;
+    const bits=[];
+    bits.push(movie?"Movie":"TV Series");
+    const yr=(m.release_date||m.first_air_date||"").slice(0,4); if(yr) bits.push(yr);
+    if(movie && m.runtime) bits.push(m.runtime+"m");
+    if(!movie && m.number_of_seasons) bits.push(m.number_of_seasons+" season"+(m.number_of_seasons>1?"s":""));
+    if(!movie && m.number_of_episodes) bits.push(m.number_of_episodes+" eps");
+    if(m.vote_average) bits.push("★ "+Math.round(m.vote_average*10)+"%");
+    $("#detailMeta").innerHTML=bits.map(b=>`<span>${esc(b)}</span>`).join("<span class='sep-dot'>·</span>");
+    $("#detailGenres").innerHTML=(m.genres||[]).slice(0,6).map(g=>`<span class="gtag">${esc(g.name)}</span>`).join("");
+    const net=(!movie && m.networks && m.networks[0])?m.networks[0].name:"";
+    $("#detailStudio").innerHTML = net?`📡 ${esc(net)}`:"";
+    const desc=(m.overview||"").trim();
+    $("#detailSyn").innerHTML = desc?`<p>${esc(desc)}</p>`:`<p class="hint">No synopsis available.</p>`;
+    const prov=m._prov||{names:[],link:null};
+    $("#detailStream").innerHTML = prov.names.length
+      ? prov.names.slice(0,6).map(n=> prov.link?`<a class="watchpill" href="${esc(prov.link)}" target="_blank" rel="noopener">▶ ${esc(n)}</a>`:`<span class="watchpill">▶ ${esc(n)}</span>`).join("")
+      : `<span class="hint">No streaming info for your region.</span>`;
+  }).catch(()=>{ if(editingKey===s.id){ $("#detailMeta").innerHTML=`<span class="hint">Details unavailable</span>`; $("#detailSyn").innerHTML=""; } });
+}
+let editingKey=null, previewMedia=null, previewIsTv=false;
+// Show/hide the anime-only fields in the edit modal (dub, delay, series group).
+function setEditAnimeFieldsVisible(v){ const el=$("#animeOnlyFields"); if(el) el.style.display=v?"":"none"; }
+// Preview a show (movie/TV) from TMDB search — synopsis + where to stream, no add.
+function openPreviewTv(m){
+  previewMedia=m; previewIsTv=true; editingId=null; editingKey="prevt_"+(m.mediaType||"tv")+m.tmdbId;
+  const already=showsForUid(meId()).some(x=>showIdent(x)===("t:"+(m.mediaType||"tv")+":"+m.tmdbId));
+  $("#editTitle").textContent=m.title;
+  const tb=$("#trackBox"); if(tb) tb.style.display="none";
+  $("#saveEdit").style.display="none"; $("#removeShow").style.display="none";
+  const ab=$("#addMineBtn"); ab.textContent=already?"✓ Already on your list":"＋ Add to my list"; ab.disabled=already; ab.style.display=loggedIn()?"":"none";
+  setEditAnimeFieldsVisible(false);
+  fillDetailsShow({id:editingKey, tmdbId:m.tmdbId, mediaType:m.mediaType, cover:m.cover, title:m.title, site_url:m.site_url});
+  $("#editOverlay").classList.add("show");
+}
 // Preview an anime from the search results — shows its synopsis without adding it.
 function openPreview(m){
-  previewMedia = m;
+  previewMedia = m; previewIsTv=false;
   editingId = null;
   editingKey = "prev_"+m.id;                 // async guard key for fillDetails
+  setEditAnimeFieldsVisible(true);
   const already = showsForUid(meId()).some(x=>String(x.anilistId)===String(m.id));
   $("#editTitle").textContent = m.title;
   const tb=$("#trackBox"); if(tb) tb.style.display="none";
@@ -1766,9 +2104,26 @@ function openEdit(id){
   const tb=$("#trackBox"); if(tb) tb.style.display = mine?"block":"none";
   $("#saveEdit").style.display = mine?"":"none";
   $("#removeShow").style.display = mine?"":"none";
-  const iHave = showsForUid(meId()).some(x=>String(x.anilistId)===String(s.anilistId));
+  const iHave = showsForUid(meId()).some(x=>showIdent(x)===showIdent(s));
   const ab=$("#addMineBtn"); ab.textContent="＋ Add to my list"; ab.disabled=false;
   $("#addMineBtn").style.display = (loggedIn() && !mine && !iHave) ? "":"none";
+  previewIsTv=false;
+  if((s.kind||"anime")==="show"){
+    const movie=(s.mediaType||"tv")==="movie";
+    $("#editStatus").value=s.status;
+    $("#editProgress").value=s.progress||0;
+    editRating=s.rating||0; renderEditStars();
+    editDelayEp=null; editDelayOn=false;
+    $("#editNotes").value=s.notes||"";
+    setEditAnimeFieldsVisible(false);
+    const pc=$("#progCol"); if(pc) pc.style.display=movie?"none":"";
+    const pl=$("#progLbl"); if(pl) pl.textContent="Episode you're on";
+    fillDetailsShow(s);
+    $("#editOverlay").classList.add("show");
+    return;
+  }
+  setEditAnimeFieldsVisible(true);
+  const pc=$("#progCol"); if(pc) pc.style.display=""; const pl=$("#progLbl"); if(pl) pl.textContent="Episode you're on";
   $("#editStatus").value=s.status;
   $("#editProgress").value=s.progress||0;
   editRating=s.rating||0; renderEditStars();
@@ -1790,6 +2145,14 @@ function updateDelayBtn(){ const b=$("#editDelay"); if(!b) return;
 async function saveEdit(){
   const s=shows.find(x=>x.id===editingId); if(!s) return;
   const wasFinished=s.status==="Finished";
+  if((s.kind||"anime")==="show"){
+    const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating};
+    Object.assign(s,patch); render();
+    $("#editOverlay").classList.remove("show");
+    if(!wasFinished && patch.status==="Finished") confetti();
+    try{ await store.update(editingId,patch); }catch(e){ toast(saveErr(e)); }
+    return;
+  }
   const dubOut=$("#editDubOut").value;
   const dubDayVal=$("#editDubDay").value;
   const newDub=(dubOut===""?null:Number(dubOut)||0);
@@ -1825,16 +2188,19 @@ function pad2(n){ return String(n).padStart(2,"0"); }
 function icsStamp(d){ return d.getUTCFullYear()+pad2(d.getUTCMonth()+1)+pad2(d.getUTCDate())+"T"+pad2(d.getUTCHours())+pad2(d.getUTCMinutes())+"00Z"; }
 function addToCalendar(id){
   const s=shows.find(x=>x.id===id); if(!s) return;
-  const a=airInfo(s.anilistId); if(a.cd!=="upcoming" || a.at==null){ toast("No upcoming episode to add"); return; }
+  const a=infoOf(s); if(a.cd!=="upcoming" || a.at==null){ toast("No upcoming episode to add"); return; }
   const start=new Date(a.at), end=new Date(a.at+30*60000);
-  const title=s.title+" — Ep "+a.nextEp;
+  const isShow=(s.kind||"anime")==="show";
+  const epTxt=isShow ? epLabelTv(a.nextEp) : ("Ep "+a.nextEp);
+  const epId=isShow ? (a.nextEp?a.nextEp.season+"x"+a.nextEp.episode:"ep") : a.nextEp;
+  const title=s.title+" — "+epTxt;
   const ics=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//AnimeTracker//EN","CALSCALE:GREGORIAN","BEGIN:VEVENT",
-    "UID:"+s.id+"-"+a.nextEp+"@animetracker","DTSTAMP:"+icsStamp(new Date()),
+    "UID:"+s.id+"-"+epId+"@animetracker","DTSTAMP:"+icsStamp(new Date()),
     "DTSTART:"+icsStamp(start),"DTEND:"+icsStamp(end),"SUMMARY:"+title,
     "DESCRIPTION:New episode airing — tracked in WatchLog.","END:VEVENT","END:VCALENDAR"].join("\r\n");
   const blob=new Blob([ics],{type:"text/calendar"});
   const url=URL.createObjectURL(blob), link=document.createElement("a");
-  link.href=url; link.download=s.title.replace(/[^a-z0-9]+/gi,"_")+"_ep"+a.nextEp+".ics";
+  link.href=url; link.download=s.title.replace(/[^a-z0-9]+/gi,"_")+"_"+epId+".ics";
   document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
   toast("📅 Calendar file downloaded — opens in Google/Apple/Outlook");
 }
@@ -1972,34 +2338,62 @@ $("#importSrc").addEventListener("click",e=>{ const b=e.target.closest("button")
 $("#importGo").onclick=doImport;
 $("#importUser").addEventListener("keydown",e=>{ if(e.key==="Enter") doImport(); });
 $("#closeAdd").onclick=()=>closeOverlay($("#addOverlay"));
-$("#trendingBtn").onclick=loadTrending;
+$("#trendingBtn").onclick=()=>{ boardKind==="show" ? tmdbTrending() : loadTrending(); };
 $("#searchInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ clearTimeout(searchTimer); doSearch(); } });
 $("#searchInput").addEventListener("input",()=>{
   clearTimeout(searchTimer);
   const q=$("#searchInput").value.trim();
-  if(q.length===0){ if(currentGenre()) browseGenre(); else $("#results").innerHTML=`<div class="hint">Start typing a title, pick a genre, or hit 🔥 Trending. Powered by AniList.</div>`; return; }
+  if(q.length===0){
+    if(boardKind==="show"){ $("#results").innerHTML=`<div class="hint">Start typing a movie or show title, or hit 🔥 Trending. Powered by TMDB.</div>`; return; }
+    if(currentGenre()) browseGenre(); else $("#results").innerHTML=`<div class="hint">Start typing a title, pick a genre, or hit 🔥 Trending. Powered by AniList.</div>`; return;
+  }
   if(q.length<2) return;
   searchTimer=setTimeout(doSearch,320); // debounce so it searches as you type
 });
 $("#genreSel").onchange=doSearch;
 $("#closeEdit2").onclick=()=>closeOverlay($("#editOverlay"));
 $("#results").addEventListener("click",e=>{ const el=e.target.closest(".result"); if(!el) return;
-  let m; try{ m=JSON.parse(el.dataset.m); }catch(err){ console.error("Couldn't parse result:",err,el.dataset.m); toast("Couldn't read that title — please try again"); return; }
-  if(e.target.closest(".rinfo")){ openPreview(m); return; }   // ⓘ → read description without adding
+  const isTv=!!el.dataset.tm;
+  let m; try{ m=JSON.parse(isTv?el.dataset.tm:el.dataset.m); }catch(err){ console.error("Couldn't parse result:",err); toast("Couldn't read that title — please try again"); return; }
+  if(e.target.closest(".rinfo")){ isTv?openPreviewTv(m):openPreview(m); return; }   // ⓘ → read description without adding
   if(el.classList.contains("added")) return;
-  addShow(m); el.classList.add("added"); el.querySelector(".rm").innerHTML+=" · ✔ added"; });
+  (isTv?addTmdb(m):addShow(m)); el.classList.add("added"); const rm=el.querySelector(".rm"); if(rm) rm.innerHTML+=" · ✔ added"; });
 $("#closeEdit").onclick=()=>closeOverlay($("#editOverlay"));
 $("#saveEdit").onclick=saveEdit;
 $("#removeShow").onclick=removeShow;
 $("#editDelay").onclick=()=>{ if(editDelayEp==null) return; editDelayOn=!editDelayOn; updateDelayBtn(); };
-$("#addMineBtn").onclick=async()=>{ const id=editingKey; const pm=previewMedia; $("#editOverlay").classList.remove("show");
-  if(pm){ previewMedia=null; await addShow(pm); }           // adding from a search preview
+$("#addMineBtn").onclick=async()=>{ const id=editingKey; const pm=previewMedia; const tv=previewIsTv; $("#editOverlay").classList.remove("show");
+  if(pm){ previewMedia=null; previewIsTv=false; await (tv?addTmdb(pm):addShow(pm)); }   // adding from a search preview
   else { await addFromShow(id); } };                        // copying someone else's show
-$("#refreshBtn").onclick=()=>{ refreshLive(); toast("Refreshing schedules…"); };
+$("#refreshBtn").onclick=()=>{ if(boardKind==="show") refreshTmdb(); else refreshLive(); toast("Refreshing…"); };
+// ---- Anime / Shows board toggle ----
+function applyBoardUI(){
+  const ab=$("#addBtn"); if(ab) ab.textContent = boardKind==="show" ? "＋ Add show" : "＋ Add anime";
+  const seg=$("#boardSeg"); if(seg) [...seg.children].forEach(b=>b.classList.toggle("active", b.dataset.board===boardKind));
+  const h=document.querySelector("#addOverlay .modal h3"); if(h) h.textContent = boardKind==="show" ? "Add a movie or show" : "Add an anime";
+  const si=$("#searchInput"); if(si) si.placeholder = boardKind==="show" ? "Search e.g. Stranger Things, Dune…" : "Search e.g. Jujutsu Kaisen, One Piece…";
+  const gr=document.querySelector("#addOverlay .genre-row"); if(gr) gr.style.display = boardKind==="show"?"none":"";
+  const dr=document.querySelector("#addOverlay .day-row"); if(dr) dr.style.display = boardKind==="show"?"none":"";
+  const rb=$("#refreshBtn"); if(rb) rb.title = boardKind==="show"?"Refresh from TMDB":"Refresh schedules from AniList";
+  const ib=$("#importBtn"); if(ib) ib.style.display = boardKind==="show"?"none":"";   // import is AniList/MAL only
+  const res=$("#results"); if(res) res.innerHTML = boardKind==="show"
+    ? `<div class="hint">Start typing a movie or show title, or hit 🔥 Trending. Powered by TMDB.</div>`
+    : `<div class="hint">Start typing a title, pick a genre, or hit <b>🔥 Trending</b>. Powered by AniList.</div>`;
+}
+function setBoard(k){
+  if(k===boardKind) return;
+  boardKind=k; try{ localStorage.setItem("watchlog:boardKind",k); }catch(e){}
+  statusFilter="all"; listFilter="";
+  const lf=$("#listFilter"); if(lf) lf.value=""; const sf=$("#statusFilter"); if(sf) sf.value="all";
+  const si=$("#searchInput"); if(si) si.value="";
+  applyBoardUI(); render();
+  if(boardKind==="show") refreshTmdbSoon();   // lazily load TMDB data on first switch
+}
+$("#boardSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; setBoard(b.dataset.board); });
 // 🎲 Pick a random "Plan to watch" title to settle the "what should we watch?" debate.
 function pickForUs(){
-  const pool=showsForUid(meId()).filter(s=>s.status==="Plan to watch");
-  if(!pool.length){ toast("No “Plan to watch” shows to pick from — add some first!"); return; }
+  const pool=showsForUid(meId()).filter(s=>(s.kind||"anime")===boardKind && s.status==="Plan to watch");
+  if(!pool.length){ toast("No “Plan to watch” "+(boardKind==="show"?"shows":"anime")+" to pick from — add some first!"); return; }
   const pick=pool[Math.floor(Math.random()*pool.length)];
   toast("🎲 How about… "+pick.title);
   openEdit(pick.id);
@@ -2257,6 +2651,7 @@ function initSyncUI(){
   }
   applyTheme(); updateNotifyBtn();
   $("#genreSel").innerHTML='<option value="">🎭 All genres</option>'+GENRES.map(g=>`<option value="${g}">${g}</option>`).join("");
+  applyBoardUI();
   initSyncUI();
   $("#viewRoot").innerHTML=skeletonHTML();
   await reload();
@@ -2264,7 +2659,7 @@ function initSyncUI(){
   if(!usingCloud && !localProfile) openProfile();          // local first run
   // periodic countdown tick + auto-resync on elapsed + hourly refresh + notifications
   setInterval(()=>{ if(currentView) render(); maybeAutoRefresh(); checkNotifications(); }, 60000);
-  setInterval(()=>refreshLive(true), 60*60*1000);
+  setInterval(()=>{ refreshLive(true); refreshTmdb(true); }, 60*60*1000);
   // Safety net: once any dialog closes, apply a deferred board re-render. render()
   // self-guards while a dialog is open, so this is a no-op until it's safe.
   setInterval(()=>{ if(pendingView) render(); }, 1200);

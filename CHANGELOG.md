@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10 — New: a "Shows" board for movies & TV
+- **Shows board.** A new **🎌 Anime / 🍿 Shows** toggle at the top switches the whole
+  board between your anime (AniList) and a separate board for non-anime movies &
+  live-action/Western TV from every service (Netflix, Prime, Disney+, etc.),
+  powered by **[TMDB](https://www.themoviedb.org)**. Your anime list is untouched —
+  it's a parallel board that shares the same account, profiles and views.
+- **Full tracking on the Shows side:** search any movie or series, read a preview
+  (synopsis + where it streams) before adding, then track status, progress and
+  ratings. Currently-airing series get a **next-episode countdown**; every card
+  shows a **where-to-stream** badge for your region (default US). Finished/Dropped
+  sections, watch-sync, "Pick for us", and the Weekly/List/Poster views all work
+  on the Shows board too.
+- The dub tools, character avatars and AniList genre/trending/day browse stay on
+  the Anime board, where they apply. Config lives in `CONFIG.TMDB` at the top of
+  `index.html`; see `Docs/Setup guide (TMDB).md` to add your own free key.
+
 ## 2026-10 — Fixes: schedules for large lists & keep your place on sync
 - **Schedules now load for every show, not just the first 50.** The live AniList
   refresh requested every tracked show's data in a single page, but AniList caps
