@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10 — New-season alerts for finished shows
+- On the **Shows** board, a series you marked **Finished** that later gets a **new
+  season** now gets a **🆕 New season** badge and floats into a **"New since you
+  finished"** callout at the top of the board (both Weekly and List). It stays
+  marked Finished until you tap **▶ Pick back up** to move it back to Watching.
+- Detection snapshots the season/episode count when you mark a show Finished and
+  compares it to TMDB later, so it catches both newly-airing and fully-dropped
+  seasons. (Anime is unaffected — there each season is its own list entry.)
+
 ## 2026-10 — Ended vs between-seasons split (Shows)
 - On the **Shows** board, series that have **finished airing** (TMDB "Ended"/
   "Canceled") now get their own **✅ Ended** section, split out from shows that are

@@ -450,6 +450,7 @@
   .pw-wrap input{width:100%;padding-right:40px}
   .pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:4px;opacity:.7}
   .pw-eye:hover{opacity:1}
+  .tag.newtag{background:rgba(77,230,168,.18);color:#4de6a8;font-weight:800}
 </style>
 </head>
 <body>
@@ -739,8 +740,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06d";
+const APP_VERSION = "2026.10.06e";
 const WHATS_NEW = [
+  { v:"2026.10.06e", title:"New season alerts for finished shows", items:[
+    "🆕 <b>New season since you finished</b> — on the Shows board, a series you marked <b>Finished</b> that gets a new season now gets a <b>🆕 New season</b> badge and floats into a <b>'New since you finished'</b> callout at the top. It stays marked Finished until you tap <b>▶ Pick back up</b> to resume it.",
+  ]},
   { v:"2026.10.06d", title:"Ended vs between-seasons split", items:[
     "✅ <b>Ended shows split out</b> — on the Shows board, series that have <b>finished airing</b> (no more episodes) now get their own section, separate from shows that are just <b>between seasons</b> and waiting on a new one. Shows in both the Weekly and List views.",
   ]},
@@ -1252,6 +1256,19 @@ function watchersOfS(s){ const k=showIdent(s); return shows.filter(x=>ownerOf(x)
 function groupRatingS(s){ const rs=watchersOfS(s).map(x=>x.rating).filter(r=>r>0); if(!rs.length) return null; return {avg:rs.reduce((a,b)=>a+b,0)/rs.length, n:rs.length}; }
 // Unified accessor so hero/sort/week placement work regardless of board.
 function infoOf(s){ return (s.kind||"anime")==="show" ? tmdbInfo(s) : airInfo(s.anilistId); }
+// A TV show you marked Finished that now has NEW episodes (a new season since you finished).
+// Uses the season/episode count snapshotted when you marked it Finished; falls back to a
+// scheduled upcoming episode for shows finished before snapshots existed. (Shows only —
+// anime seasons are separate list entries, so this never applies to anime.)
+function newSinceFinished(s){
+  if((s.kind||"anime")!=="show" || (s.mediaType||"tv")==="movie" || s.status!=="Finished") return false;
+  const a=tmdbInfo(s);
+  if(a.cd==="unknown") return false;                                   // TMDB data not loaded yet
+  if(s.fin_seasons!=null && a.seasons!=null && a.seasons > s.fin_seasons) return true;
+  if(s.fin_eps!=null && a.total!=null && a.total > s.fin_eps) return true;
+  if(s.fin_eps==null && s.fin_seasons==null && a.cd==="upcoming") return true;   // legacy: no snapshot
+  return false;
+}
 
 // ---- Show cards (mirror the anime cards, minus the dub layer) ----
 function epLabelTv(ne){ return ne ? ("S"+ne.season+" E"+ne.episode) : ""; }
@@ -1271,9 +1288,10 @@ function streamPillsTv(a){
 }
 function showCardTv(s){
   const a=tmdbInfo(s); const ro=isReadOnly(); const now=Date.now(); const movie=(s.mediaType||"tv")==="movie";
+  const newFlag=newSinceFinished(s);
   let cd="";
   if(s.status==="Dropped") cd=`<div class="countdown done">✖ Dropped</div>`;
-  else if(s.status==="Finished") cd=`<div class="countdown done">✔ Finished</div>`;
+  else if(s.status==="Finished") cd = newFlag ? `<div class="countdown soon">🆕 New season available</div>` : `<div class="countdown done">✔ Finished</div>`;
   else if(a.cd==="upcoming" && a.at>now){ const f=fmtCountdown(a.at); cd=`<div class="countdown ${f.soon?"soon":""}">📺 ${epLabelTv(a.nextEp)} in ${f.txt}</div>`; }
   else if(a.cd==="upcoming"){ cd=`<div class="countdown soon">🟢 ${epLabelTv(a.nextEp)} out now</div>`; }
   else if(a.cd==="notyet") cd=`<div class="countdown done">🕓 Not yet released</div>`;
@@ -1282,6 +1300,7 @@ function showCardTv(s){
   else cd=`<div class="countdown done"><span class="spinner" style="width:12px;height:12px;border-width:2px"></span> loading…</div>`;
   const today=a.cd==="upcoming" && isSameLocalDay(a.at);
   const typeTag=`<span class="tag">${movie?"🎬 Movie":"📺 Series"}</span>`;
+  const newTag = newFlag ? `<span class="tag newtag" title="A new season has arrived since you marked this Finished">🆕 New season</span>` : "";
   const dayTag=(!movie && a.dayName)?`<span class="tag day">📆 ${a.dayName}</span>`:"";
   const todayBadge=today?`<span class="tag todaytag">🔴 Today</span>`:"";
   const info= movie ? (a.runtime?`${a.runtime} min`:"") : (a.seasons?`${a.seasons} season${a.seasons>1?"s":""}${a.total?` · ${a.total} eps`:""}`:(a.total?`${a.total} eps`:""));
@@ -1317,7 +1336,7 @@ function showCardTv(s){
     <div class="cover" ${cover}></div>
     <div class="body">
       <p class="title">${esc(s.title)}</p>
-      <div class="meta">${todayBadge}${typeTag}${relTag}${posTag}${latestTag}${behindBadge}${dayTag}${info?`<span class="tag">${movie?"⏱️":"📺"} ${esc(info)}</span>`:""}</div>
+      <div class="meta">${newTag}${todayBadge}${typeTag}${relTag}${posTag}${latestTag}${behindBadge}${dayTag}${info?`<span class="tag">${movie?"⏱️":"📺"} ${esc(info)}</span>`:""}</div>
       ${cd}
       ${streamPillsTv(a)}
       ${social}
@@ -1326,6 +1345,7 @@ function showCardTv(s){
       ${s.notes?`<div class="notes">📝 ${esc(s.notes)}</div>`:""}
       <div class="rowbtns" style="margin-top:8px">
         ${addMine}
+        ${(newFlag && !ro && iOwnThis)?`<button class="btn ghost sm" data-act="resume" data-id="${s.id}" title="Move back to Watching">▶ Pick back up</button>`:""}
         ${ro?"":`<button class="icon-btn" data-act="edit" data-id="${s.id}" title="Edit">✏️</button>`}
         ${s.site_url?`<a class="icon-btn" href="${esc(s.site_url)}" target="_blank" title="TMDB page">🔗</a>`:""}
       </div>
@@ -1729,6 +1749,13 @@ function renderWeek(){
       <div class="cardlist">${items.length?items.map(i=>weekCard(i.s)).join(""):`<div class="empty-day">—</div>`}</div></div>`;
   });
   html+=`</div>`;
+  // Shows: surface Finished shows that have a new season since you finished (pulled out of Finished).
+  const nsNew = finished.filter(newSinceFinished);
+  const nsSet = new Set(nsNew);
+  if(nsNew.length){
+    html+=`<h3 class="sec-h">🆕 New since you finished <span class="sec-note">a new season has arrived — tap ▶ Pick back up to resume</span></h3>
+      <div class="week-loose">${renderGrouped(nsNew, weekCard)}</div>`;
+  }
   if(boardKind==="anime") html+=`<div class="dub-legend"><span class="dubdot"></span> Purple = estimated English-dub day (learned from when the dub was last bumped, or set by hand). Sub airings are exact.</div>`;
   if(dubReleasing.length){
     html+=`<h3 class="sec-h">🎙️ Dub still releasing <span class="sec-note">dub day not learned yet — bump the dub counter after a new episode, or set the day in Edit</span></h3>
@@ -1747,8 +1774,9 @@ function renderWeek(){
     html+=`<h3 class="sec-h">✅ Ended <span class="sec-note">finished airing — no more episodes coming</span></h3>
       <div class="week-loose">${renderGrouped(ended, weekCard)}</div>`;
   }
-  if(finished.length){
-    html+=`<details class="finished-sec"><summary>✔ Finished · ${finished.length}</summary><div class="week-loose">${renderGrouped(finished, weekCard)}</div></details>`;
+  const finRest = finished.filter(s=>!nsSet.has(s));
+  if(finRest.length){
+    html+=`<details class="finished-sec"><summary>✔ Finished · ${finRest.length}</summary><div class="week-loose">${renderGrouped(finRest, weekCard)}</div></details>`;
   }
   if(dropped.length){
     html+=`<details class="finished-sec dropped-sec"><summary>✖ Dropped · ${dropped.length}</summary><div class="week-loose">${renderGrouped(dropped, weekCard)}</div></details>`;
@@ -1761,8 +1789,11 @@ function renderList(){
   if(!list.length){ root.innerHTML=emptyState(); return; }
   if(statusFilter==="Finished"||statusFilter==="Dropped"){ root.innerHTML=`<div class="grid-list">${list.map(showCard).join("")}</div>`; return; }
   const active=list.filter(s=>s.status!=="Finished" && s.status!=="Dropped");
-  const finished=list.filter(s=>s.status==="Finished");
+  let finished=list.filter(s=>s.status==="Finished");
   const dropped=list.filter(s=>s.status==="Dropped");
+  // On the Shows board, surface Finished shows that have a NEW season since you finished.
+  const newSeason = finished.filter(newSinceFinished);
+  if(newSeason.length){ const nset=new Set(newSeason); finished=finished.filter(s=>!nset.has(s)); }
   // On the Shows board, split "ended" series (no more episodes) out of the active grid.
   let ended=[];
   if(boardKind==="show"){
@@ -1770,8 +1801,12 @@ function renderList(){
     ended=[...endedSet];
     var activeMain=active.filter(s=>!endedSet.has(s));
   } else { var activeMain=active; }
-  let html = activeMain.length ? `<div class="grid-list">${renderGrouped(activeMain, showCard)}</div>`
-                           : (ended.length ? "" : `<div class="hint" style="padding:24px 4px">Nothing active right now — see Finished / Dropped below.</div>`);
+  let html = "";
+  if(newSeason.length){
+    html += `<h3 class="sec-h">🆕 New since you finished <span class="sec-note">a new season has arrived — tap ▶ Pick back up to resume</span></h3><div class="grid-list">${renderGrouped(newSeason, showCard)}</div>`;
+  }
+  html += activeMain.length ? `<div class="grid-list">${renderGrouped(activeMain, showCard)}</div>`
+                           : ((ended.length||newSeason.length) ? "" : `<div class="hint" style="padding:24px 4px">Nothing active right now — see Finished / Dropped below.</div>`);
   if(ended.length){
     html += `<details class="finished-sec" open><summary>✅ Ended · ${ended.length} <span style="font-weight:400;opacity:.7">— no more episodes</span></summary><div class="grid-list">${renderGrouped(ended, showCard)}</div></details>`;
   }
@@ -2057,6 +2092,13 @@ async function bumpSeason(id,delta){
   s.season=Math.max(1,(s.season||1)+delta); render();
   try{ await store.update(id,{season:s.season}); }catch(e){ toast(saveErr(e)); }
 }
+// "Pick back up" — move a Finished show you've been flagged about back into your active list.
+async function resumeShow(id){
+  const s=shows.find(x=>x.id===id); if(!s) return;
+  const patch={status:"Watching", fin_seasons:null, fin_eps:null};
+  Object.assign(s,patch); render();
+  try{ await store.update(id,patch); toast("Moved “"+s.title+"” back to Watching"); }catch(e){ toast(saveErr(e)); }
+}
 async function bump(id,delta){
   const s=shows.find(x=>x.id===id); if(!s) return;
   const a=airInfo(s.anilistId); const before=s.progress||0;
@@ -2239,6 +2281,12 @@ async function saveEdit(){
   if((s.kind||"anime")==="show"){
     const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating};
     if((s.mediaType||"tv")!=="movie") patch.season=Math.max(1,Number($("#editSeason").value)||1);
+    // Snapshot the current season/episode count when marking a TV show Finished, so we can
+    // later tell when a NEW season has arrived. Clear it when leaving Finished.
+    if((s.mediaType||"tv")!=="movie"){
+      if(patch.status==="Finished"){ const a=tmdbInfo(s); patch.fin_seasons=(a.seasons!=null?a.seasons:null); patch.fin_eps=(a.total!=null?a.total:null); }
+      else if(wasFinished){ patch.fin_seasons=null; patch.fin_eps=null; }
+    }
     Object.assign(s,patch); render();
     $("#editOverlay").classList.remove("show");
     if(!wasFinished && patch.status==="Finished") confetti();
@@ -2513,6 +2561,7 @@ document.addEventListener("click",e=>{
   const id=b.dataset.id, act=b.dataset.act;
   if(act==="inc") bump(id,1); else if(act==="dec") bump(id,-1);
   else if(act==="sinc") bumpSeason(id,1); else if(act==="sdec") bumpSeason(id,-1);
+  else if(act==="resume") resumeShow(id);
   else if(act==="dubinc") setDub(id,1); else if(act==="dubdec") setDub(id,-1);
   else if(act==="addmine") addFromShow(id);
   else if(act==="edit") openEdit(id); else if(act==="cal") addToCalendar(id);
