@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10 — Smaller "What's new" + smarter add defaults
+- **Shorter "What's new" popup** — the auto-popup now shows only what's changed
+  **since you last looked** (usually a single entry), and the ✨ history view shows
+  the latest few with older updates tucked behind a "Show older updates" toggle,
+  instead of the whole list every time.
+- **Upcoming shows default to "Plan to watch"** — adding an anime that **hasn't
+  aired yet** (it would land in Coming soon) now comes in as *Plan to watch*
+  instead of *Watching*, since you can't be watching it yet. Already-airing shows
+  still default to Watching. (Movies/TV on the other boards already did this.)
+
 ## 2026-10 — New-season discovery for anime
 - **"New seasons for your anime"** — WatchLog scans the sequel links of the anime
   you track and surfaces any **new season/sequel that's announced or airing but not

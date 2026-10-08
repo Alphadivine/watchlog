@@ -453,6 +453,9 @@
   .tag.newtag{background:rgba(77,230,168,.18);color:#4de6a8;font-weight:800}
   .tag.fmt{background:rgba(255,194,92,.16);color:#ffc25c;font-weight:800}
   .newseasons-sec>summary{color:#4de6a8}
+  .wn-older{margin-top:4px}
+  .wn-older>summary{cursor:pointer;color:var(--faint);font-size:13px;padding:6px 0;list-style:none}
+  .wn-older>summary:hover{color:var(--text)}
 </style>
 </head>
 <body>
@@ -2148,7 +2151,7 @@ function renderResults(media, heading){
     const t=m.title.english||m.title.romaji;
     const added=have.has(String(m.id));
     const sub=[m.format,m.seasonYear,(m.status||"").replace(/_/g," ").toLowerCase()].filter(Boolean).join(" · ");
-    return `<div class="result ${added?"added":""}" style="animation-delay:${Math.min(i*30,300)}ms" data-m='${esc(JSON.stringify({id:m.id,title:t,cover:m.coverImage.medium,site_url:m.siteUrl}))}'>
+    return `<div class="result ${added?"added":""}" style="animation-delay:${Math.min(i*30,300)}ms" data-m='${esc(JSON.stringify({id:m.id,title:t,cover:m.coverImage.medium,site_url:m.siteUrl,status:m.status}))}'>
       <img src="${esc(hiRes(m.coverImage.medium||""))}" alt="" loading="lazy"/>
       <div class="rbody"><div class="rt">${esc(t)}</div><div class="rm">${esc(sub)}${added?" · ✔ added":""}</div></div>
       <button class="rinfo" data-act="preview" title="Read description (doesn't add)">ⓘ</button></div>`;
@@ -2157,7 +2160,9 @@ function renderResults(media, heading){
 async function addShow(m){
   if(!loggedIn()){ usingCloud?openAuth():openProfile(); return; }
   const owner = displayName(meId());   // display-name snapshot for fallback
-  const base={anilist_id:m.id,title:m.title,cover:m.cover,site_url:m.site_url,status:"Watching",progress:0,notes:"",owner};
+  // A not-yet-aired anime defaults to "Plan to watch" (you can't be Watching it yet).
+  const notYet = (m.status==="NOT_YET_RELEASED") || ((live.get(m.id)||{}).status==="NOT_YET_RELEASED");
+  const base={anilist_id:m.id,title:m.title,cover:m.cover,site_url:m.site_url,status:(notYet?"Plan to watch":"Watching"),progress:0,notes:"",owner};
   const row = usingCloud ? base : {...base, anilistId:m.id, owner:"me"};
   try{
     const saved=await store.add(row);
@@ -2572,14 +2577,34 @@ $("#addBtn").onclick=$("#fabAdd").onclick=()=>{ $("#addOverlay").classList.add("
 $("#importBtn").onclick=openImport;
 $("#notifyBtn").onclick=toggleNotify;
 $("#themeBtn").onclick=toggleTheme;
-function renderWhatsNew(){
-  $("#whatsNewBody").innerHTML = WHATS_NEW.map(e=>`<div class="wn-block"><div class="wn-h">${esc(e.title)}</div>
-    <ul class="wn-list">${e.items.map(i=>`<li>${i}</li>`).join("")}</ul></div>`).join("");
+function wnBlock(e){ return `<div class="wn-block"><div class="wn-h">${esc(e.title)}</div>
+    <ul class="wn-list">${e.items.map(i=>`<li>${i}</li>`).join("")}</ul></div>`; }
+// Render the given entries; the most recent RECENT are shown, older ones tucked in a details.
+function renderWhatsNew(list, showOlder){
+  const entries = list || WHATS_NEW;
+  const RECENT = 4;
+  let html = entries.slice(0,RECENT).map(wnBlock).join("");
+  const older = entries.slice(RECENT);
+  if(showOlder && older.length){
+    html += `<details class="wn-older"><summary>Show ${older.length} older update${older.length>1?"s":""}</summary>${older.map(wnBlock).join("")}</details>`;
+  }
+  $("#whatsNewBody").innerHTML = html || `<div class="hint">You're all caught up.</div>`;
 }
-function openWhatsNew(){ renderWhatsNew(); $("#whatsNewOverlay").classList.add("show"); }
+// Only the entries newer than the version last seen (so repeat popups stay short).
+function whatsNewSince(seen){
+  if(!seen) return WHATS_NEW.slice(0,3);
+  const i=WHATS_NEW.findIndex(e=>e.v===seen);
+  return (i>0) ? WHATS_NEW.slice(0,i) : (i===0 ? [] : WHATS_NEW.slice(0,3));
+}
+function openWhatsNew(){ renderWhatsNew(WHATS_NEW, true); $("#whatsNewOverlay").classList.add("show"); }   // manual ✨ — recent + older
 function maybeShowWhatsNew(){
   let seen=null; try{ seen=localStorage.getItem("watchlog:seenVersion"); }catch(e){}
-  if(seen!==APP_VERSION){ openWhatsNew(); try{ localStorage.setItem("watchlog:seenVersion",APP_VERSION); }catch(e){} }
+  if(seen===APP_VERSION) return;
+  const since=whatsNewSince(seen);
+  if(!since.length){ try{ localStorage.setItem("watchlog:seenVersion",APP_VERSION); }catch(e){} return; }
+  renderWhatsNew(since, false);                      // auto popup — only what's new since last visit
+  $("#whatsNewOverlay").classList.add("show");
+  try{ localStorage.setItem("watchlog:seenVersion",APP_VERSION); }catch(e){}
 }
 $("#whatsNewBtn").onclick=openWhatsNew;
 $("#whatsNewClose").onclick=()=>$("#whatsNewOverlay").classList.remove("show");
@@ -2676,7 +2701,7 @@ document.addEventListener("click",e=>{
   else if(act==="sinc") bumpSeason(id,1); else if(act==="sdec") bumpSeason(id,-1);
   else if(act==="resume") resumeShow(id);
   else if(act==="addseq"){ const m=newSeasonsList.find(x=>String(x.id)===String(id));
-    if(m){ newSeasonsList=newSeasonsList.filter(x=>String(x.id)!==String(id)); render(); addShow({id:Number(m.id), title:m.title, cover:m.cover, site_url:m.siteUrl}); } }
+    if(m){ newSeasonsList=newSeasonsList.filter(x=>String(x.id)!==String(id)); render(); addShow({id:Number(m.id), title:m.title, cover:m.cover, site_url:m.siteUrl, status:m.status}); } }
   else if(act==="dubinc") setDub(id,1); else if(act==="dubdec") setDub(id,-1);
   else if(act==="addmine") addFromShow(id);
   else if(act==="edit") openEdit(id); else if(act==="cal") addToCalendar(id);
