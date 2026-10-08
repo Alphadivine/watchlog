@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10 — Anime movies: grouped, labelled & filterable
+- **Movie / OVA labels on anime** — anime that are movies (or OVAs, ONAs, specials)
+  now carry a type label (🎬 Movie etc.) so you can tell them from TV seasons at a
+  glance, on the card and in the Weekly/Poster views. (Needed adding `format` to
+  the AniList refresh query.)
+- **Anime movies group with the series** — a film clusters into the same series
+  card as the show's seasons via AniList relations (verified: *Heroes Rising*
+  lands in the My Hero franchise), and the group header shows the mix
+  (e.g. "7 seasons · 2 🎬 movies").
+- **Type filter** on the Anime board: All / 📺 Series / 🎬 Movies.
+- **Anime movies drop the episode UI** — no "episode you're on" field, dub-episode
+  counter, or "N eps" in details, since a film has no episodes.
+
 ## 2026-10 — New-season alerts for finished shows
 - On the **Shows** board, a series you marked **Finished** that later gets a **new
   season** now gets a **🆕 New season** badge and floats into a **"New since you

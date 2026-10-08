@@ -451,6 +451,7 @@
   .pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:4px;opacity:.7}
   .pw-eye:hover{opacity:1}
   .tag.newtag{background:rgba(77,230,168,.18);color:#4de6a8;font-weight:800}
+  .tag.fmt{background:rgba(255,194,92,.16);color:#ffc25c;font-weight:800}
 </style>
 </head>
 <body>
@@ -493,6 +494,11 @@
       <option value="Plan to watch">Plan to watch</option>
       <option value="Finished">Finished</option>
       <option value="Dropped">Dropped</option>
+    </select>
+    <select class="filter" id="fmtFilter" title="Filter by type" style="display:none">
+      <option value="all">All types</option>
+      <option value="series">📺 Series</option>
+      <option value="movie">🎬 Movies</option>
     </select>
     <select class="filter" id="sortSel" title="Sort your list">
       <option value="soonest">⏳ Soonest airing</option>
@@ -572,6 +578,7 @@
           <div><label class="fld">Your rating</label><div id="editStars" class="stars interactive big"></div></div>
         </div>
         <div id="animeOnlyFields">
+        <div id="epFields">
         <label class="fld">🎙️ Latest dub episode out <span style="color:var(--faint);font-weight:400">(shared with your group)</span></label>
         <input type="number" id="editDubOut" min="0" placeholder="e.g. 8 — leave blank if no dub yet" />
         <label class="fld">🎙️ Dub release day <span style="color:var(--faint);font-weight:400">(shared — leave on Auto to learn it from drops)</span></label>
@@ -581,6 +588,7 @@
         </select>
         <label class="fld">Delay <span style="color:var(--faint);font-weight:400">(shared — clears itself once the episode airs)</span></label>
         <button type="button" class="btn ghost sm" id="editDelay" style="width:100%;justify-content:center">🚩 Mark this week's episode delayed</button>
+        </div>
         <label class="fld">🗂️ Series group <span style="color:var(--faint);font-weight:400">(optional — type the same name on each part to group them)</span></label>
         <input type="text" id="editSeries" placeholder="e.g. Demon Slayer" autocomplete="off" />
         </div>
@@ -740,8 +748,14 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06e";
+const APP_VERSION = "2026.10.06f";
 const WHATS_NEW = [
+  { v:"2026.10.06f", title:"Anime movies grouped, labelled & filterable", items:[
+    "🎬 <b>Movie / OVA labels on anime</b> — anime that are movies (or OVAs, ONAs, specials) now get a label so you can tell them from TV seasons at a glance, on the card and in the weekly/poster views.",
+    "🗂️ <b>Movies group with the series</b> — an anime film sits inside the same series card as its show's seasons (via AniList's links), and the group header notes how many movies it contains (e.g. '7 seasons · 2 🎬 movies').",
+    "🔎 <b>Filter by type</b> — a new All / 📺 Series / 🎬 Movies filter on the Anime board.",
+    "🎬 <b>Cleaner movie details</b> — anime movies no longer show an 'episode you're on' or dub-episode field, since a film has no episodes.",
+  ]},
   { v:"2026.10.06e", title:"New season alerts for finished shows", items:[
     "🆕 <b>New season since you finished</b> — on the Shows board, a series you marked <b>Finished</b> that gets a new season now gets a <b>🆕 New season</b> badge and floats into a <b>'New since you finished'</b> callout at the top. It stays marked Finished until you tap <b>▶ Pick back up</b> to resume it.",
   ]},
@@ -819,7 +833,7 @@ const DETAILS_Q = `query($id:Int){Media(id:$id,type:ANIME){
   nextAiringEpisode{airingAt episode} externalLinks{site url type} streamingEpisodes{title url site}}}`;
 const GENRES = ["Action","Adventure","Comedy","Drama","Fantasy","Horror","Mahou Shoujo","Mecha","Music","Mystery","Psychological","Romance","Sci-Fi","Slice of Life","Sports","Supernatural","Thriller"];
 const REFRESH_Q = `query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){
-  id status episodes bannerImage nextAiringEpisode{airingAt timeUntilAiring episode}
+  id status format episodes bannerImage nextAiringEpisode{airingAt timeUntilAiring episode}
   externalLinks{site url type} streamingEpisodes{title url site}
   relations{edges{relationType node{id type}}}}}}`;
 const TRENDING_Q = `query{Page(perPage:24){media(type:ANIME,status:RELEASING,sort:TRENDING_DESC,isAdult:false){
@@ -919,6 +933,7 @@ function onBoard(s){ const k=s.kind||"anime"; if(boardKind==="anime") return k==
 function isTmdbBoard(){ return boardKind!=="anime"; }
 let currentView = "week";
 let statusFilter = "all";
+let fmtFilter = "all";          // anime board: "all" | "series" | "movie"
 let listFilter = "";
 let sortBy = "soonest";
 let editingId = null;
@@ -1544,11 +1559,14 @@ function renderGrouped(list, renderOne){
     const rep=seasons[seasons.length-1];
     const cover=rep.cover?hiRes(rep.cover):"";
     const gkey=seriesKeyOf(g[0])||("__"+g[0].id);
+    const movieCount=seasons.filter(m=>animeFmt(m)==="MOVIE").length;   // movies grouped into this series
+    const tvCount=seasons.length-movieCount;
+    const metaTxt = movieCount ? `${tvCount} season${tvCount!==1?"s":""} · ${movieCount} 🎬 movie${movieCount>1?"s":""}` : `${seasons.length} parts`;
     return `<details class="series-grp" data-grp="${esc(gkey)}">
       <summary class="series-sum">
         <span class="series-cv" style="${cover?`background-image:url('${esc(cover)}')`:""}"></span>
         <span class="series-info"><span class="series-ttl">${esc(seriesLabel(seasons))}</span>
-          <span class="series-meta">${seasons.length} parts</span></span>
+          <span class="series-meta">${metaTxt}</span></span>
       </summary>
       <div class="series-inner">${seasons.map(renderOne).join("")}</div>
     </details>`;
@@ -1560,6 +1578,7 @@ function visibleShows(){
   const q=listFilter.trim().toLowerCase();
   let list=ownerShows().filter(s=> onBoard(s)
     && (statusFilter==="all"||s.status===statusFilter)
+    && (boardKind!=="anime" || fmtFilter==="all" || (fmtFilter==="movie" ? animeFmt(s)==="MOVIE" : animeFmt(s)!=="MOVIE"))
     && (!q || (s.title||"").toLowerCase().includes(q)));
   const BIG=8.64e15;
   const atOf=s=>{ const a=infoOf(s); return a.at||BIG; };
@@ -1568,6 +1587,13 @@ function visibleShows(){
   else if(sortBy==="status") list.sort((x,y)=>(x.status||"").localeCompare(y.status||"")|| (x.title||"").localeCompare(y.title||""));
   // "added" keeps stored order (no sort)
   return list;
+}
+// AniList format for an anime (TV / MOVIE / OVA / ONA / SPECIAL / MUSIC), from live data.
+function animeFmt(s){ const l=live.get(s.anilistId); return (l&&l.format)||null; }
+// A quick-glance badge for non-TV anime (movies, OVAs, etc.); TV is the default and gets none.
+function animeFmtTag(s){
+  const map={MOVIE:"🎬 Movie", OVA:"📀 OVA", ONA:"💻 ONA", SPECIAL:"✨ Special", MUSIC:"🎵 Music"};
+  const f=animeFmt(s); return map[f] ? `<span class="tag fmt" title="${esc(f.replace(/_/g,' '))}">${map[f]}</span>` : "";
 }
 function showCard(s){
   if((s.kind||"anime")==="show") return showCardTv(s);
@@ -1629,18 +1655,18 @@ function showCard(s){
     <div class="cover" ${cover}></div>
     <div class="body">
       <p class="title">${esc(s.title)}</p>
-      <div class="meta">${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}${airedLbl?`<span class="tag">📺 ${airedLbl}</span>`:""}</div>
+      <div class="meta">${animeFmtTag(s)}${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}${airedLbl?`<span class="tag">📺 ${airedLbl}</span>`:""}</div>
       ${cd}
       ${streaming}
       ${social}
       ${ratingRow}
-      ${!ro?`<div class="dubrow"><span class="dublbl">🎙️ Latest dub</span><span class="stepper"><button data-act="dubdec" data-id="${s.id}">−</button><span>Ep ${dub?dub.ep:0}</span><button data-act="dubinc" data-id="${s.id}">＋</button></span></div>`:""}
-      <div class="prog">
+      ${(animeFmt(s)!=="MOVIE" && !ro)?`<div class="dubrow"><span class="dublbl">🎙️ Latest dub</span><span class="stepper"><button data-act="dubdec" data-id="${s.id}">−</button><span>Ep ${dub?dub.ep:0}</span><button data-act="dubinc" data-id="${s.id}">＋</button></span></div>`:""}
+      ${animeFmt(s)==="MOVIE" ? "" : `<div class="prog">
         <span class="lbl">On ep</span>
         ${ro
           ? `<b style="font-size:13px">${s.progress||0}${a.airedEps?" / "+a.airedEps:""}</b>`
           : `<span class="stepper"><button data-act="dec" data-id="${s.id}">−</button><span>${s.progress||0}${a.airedEps?" / "+a.airedEps:""}</span><button data-act="inc" data-id="${s.id}">＋</button></span>`}
-      </div>
+      </div>`}
       ${s.notes?`<div class="notes">📝 ${esc(s.notes)}</div>`:""}
       <div class="rowbtns" style="margin-top:8px">
         ${addMine}
@@ -1711,11 +1737,12 @@ function weekCard(s){
   else if(a.nextEp) epLine = `Ep ${a.nextEp}${dub?` &nbsp;·&nbsp; 🎙️ Dub ${dub.ep}`:""}`;
   else epLine = dub?`🎙️ Dub Ep ${dub.ep} out`:"";
   const showTime = slot.kind==="sub" && a.time;
+  const fmtMark = {MOVIE:"🎬",OVA:"📀",ONA:"💻",SPECIAL:"✨",MUSIC:"🎵"}[animeFmt(s)]||"";
   return `<button class="wcard ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" title="${esc(s.title)} — tap for details">
     <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
     <div class="wcover" ${cover}></div>
     <div class="wbody">
-      <div class="wtitle">${esc(s.title)}</div>
+      <div class="wtitle">${fmtMark?fmtMark+" ":""}${esc(s.title)}</div>
       <div class="wmeta">${showTime?`<span class="wk-time">🕒 ${esc(a.time)}</span>`:""}${cd}</div>
       ${epLine?`<div class="wep">${epLine}</div>`:""}
     </div>
@@ -1831,7 +1858,7 @@ function posterCard(s){
     <span class="poster-grad"></span>
     ${badge}
     ${today?`<span class="ptoday">🔴 Today</span>`:dub?`<span class="pdub" title="Latest dub episode out">🎙️ Dub ${dub.ep}</span>`:""}
-    <span class="poster-meta"><span class="pt">${esc(s.title)}</span>
+    <span class="poster-meta"><span class="pt">${({MOVIE:"🎬 ",OVA:"📀 ",ONA:"💻 ",SPECIAL:"✨ ",MUSIC:"🎵 "}[animeFmt(s)]||"")}${esc(s.title)}</span>
       <span class="ps">${a.dayName?esc(a.dayName):(a.cd==="finished"?"Finished":"")}${a.time?" · "+esc(a.time):""}</span></span>
   </button>`;
 }
@@ -2138,7 +2165,7 @@ function fillDetails(s){
     const bits=[];
     if(m.format) bits.push(esc(m.format.replace(/_/g," ")));
     if(m.seasonYear) bits.push((m.season?capWord(m.season)+" ":"")+m.seasonYear);
-    if(m.episodes) bits.push(m.episodes+" eps");
+    if(m.episodes && m.format!=="MOVIE") bits.push(m.episodes+" eps");
     if(m.duration) bits.push(m.duration+"m");
     if(m.averageScore) bits.push("★ "+m.averageScore+"%");
     const dl=dubLatest(s.anilistId);
@@ -2256,7 +2283,10 @@ function openEdit(id){
   }
   setEditAnimeFieldsVisible(true);
   const sr=$("#seasonRow"); if(sr) sr.style.display="none";
-  const pc=$("#progCol"); if(pc) pc.style.display=""; const pl=$("#progLbl"); if(pl) pl.textContent="Episode you're on";
+  // Anime movies have no episodes — hide the episode field and the dub/delay (episodic) fields.
+  const aniMovie = animeFmt(s)==="MOVIE";
+  const pc=$("#progCol"); if(pc) pc.style.display=aniMovie?"none":""; const pl=$("#progLbl"); if(pl) pl.textContent="Episode you're on";
+  const ef=$("#epFields"); if(ef) ef.style.display=aniMovie?"none":"";
   $("#editStatus").value=s.status;
   $("#editProgress").value=s.progress||0;
   editRating=s.rating||0; renderEditStars();
@@ -2522,6 +2552,7 @@ function applyBoardUI(){
   const dr=document.querySelector("#addOverlay .day-row"); if(dr) dr.style.display = tmdb?"none":"";
   const rb=$("#refreshBtn"); if(rb) rb.title = tmdb?"Refresh from TMDB":"Refresh schedules from AniList";
   const ib=$("#importBtn"); if(ib) ib.style.display = tmdb?"none":"";   // import is AniList/MAL only
+  const ff=$("#fmtFilter"); if(ff) ff.style.display = (boardKind==="anime")?"":"none";   // movie/series filter is anime-only
   const res=$("#results"); if(res) res.innerHTML = tmdb
     ? `<div class="hint">Start typing a ${boardKind==="movie"?"movie":"show"} title, or hit 🔥 Trending. Powered by TMDB.</div>`
     : `<div class="hint">Start typing a title, pick a genre, or hit <b>🔥 Trending</b>. Powered by AniList.</div>`;
@@ -2529,8 +2560,8 @@ function applyBoardUI(){
 function setBoard(k){
   if(k===boardKind) return;
   boardKind=k; try{ localStorage.setItem("watchlog:boardKind",k); }catch(e){}
-  statusFilter="all"; listFilter="";
-  const lf=$("#listFilter"); if(lf) lf.value=""; const sf=$("#statusFilter"); if(sf) sf.value="all";
+  statusFilter="all"; listFilter=""; fmtFilter="all";
+  const lf=$("#listFilter"); if(lf) lf.value=""; const sf=$("#statusFilter"); if(sf) sf.value="all"; const ff=$("#fmtFilter"); if(ff) ff.value="all";
   const si=$("#searchInput"); if(si) si.value="";
   applyBoardUI(); render();
   if(isTmdbBoard()) refreshTmdbSoon();   // lazily load TMDB data on first switch
@@ -2549,6 +2580,7 @@ $("#pickBtn").onclick=pickForUs;
 $("#viewSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return;
   [...$("#viewSeg").children].forEach(x=>x.classList.remove("active")); b.classList.add("active"); currentView=b.dataset.view; render(); });
 $("#statusFilter").onchange=e=>{ statusFilter=e.target.value; render(); };
+$("#fmtFilter").onchange=e=>{ fmtFilter=e.target.value; render(); };
 $("#sortSel").onchange=e=>{ sortBy=e.target.value; render(); };
 let filterTimer=null;
 $("#listFilter").addEventListener("input",e=>{ clearTimeout(filterTimer); const v=e.target.value; filterTimer=setTimeout(()=>{ listFilter=v; render(); },160); });
