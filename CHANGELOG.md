@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10 — New-season discovery for anime
+- **"New seasons for your anime" callout** — WatchLog scans the sequel links of the
+  anime you track and surfaces any **new season/sequel that's announced or airing
+  but not on your list yet** at the top of the Anime board, with a one-tap **＋ Add
+  to my list**. So a new season dropping no longer slips by just because it's a
+  separate AniList entry. (Verified live: found 12 upcoming sequels across a
+  70-title list — Frieren S3, Dandadan S3, Shield Hero S5, etc.)
+- Added a sequel-details query (`SEQ_Q`); results are cached and refreshed with the
+  rest of the live data.
+
 ## 2026-10 — Anime movies: grouped, labelled & filterable
 - **Movie / OVA labels on anime** — anime that are movies (or OVAs, ONAs, specials)
   now carry a type label (🎬 Movie etc.) so you can tell them from TV seasons at a
