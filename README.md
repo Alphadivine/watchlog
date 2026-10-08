@@ -1,125 +1,77 @@
-# 📺 WatchLog
+# ▶▶ Squad Queue
 
-A shared anime release tracker for you and your friends. See what airs each day, track your progress, know when the **English dub** drops, and browse what everyone else is watching — all in one place, synced live. Separate **🍿 Shows** and **🎬 Movies** boards track non-anime TV & films (Netflix, Prime, Disney+, …) too.
+A shared "what should we play together?" board for you and your friends. Anyone in the crew can suggest a game, everyone votes, and the app tells you straight away whether the people who want to play can actually **play together across PC, PlayStation and Xbox**, where to buy it, and what it costs.
 
-WatchLog is a single self-contained HTML file. No build step, no framework, no server of your own — it runs entirely in the browser and stores shared data in a free [Firebase](https://firebase.google.com) (Firestore) project.
+Squad Queue is a single self-contained `index.html` (plus a data file). No build step, no server of your own: it runs in the browser and stores shared data in a free [Firebase](https://firebase.google.com) (Firestore) project.
 
-> **Live site:** **https://alphadivine.github.io/watchlog/**
+> **Live site:** **https://alphadivine.github.io/squad-queue/** *(once deployed)*
 
 ---
 
 ## ✨ Features
 
-- **🎌 Anime · 🍿 Shows · 🎬 Movies boards** — a toggle at the top switches between your anime (AniList), live-action/Western TV series, and movies — the last two from every service, powered by [TMDB](https://www.themoviedb.org). TV and movies are separate boards so films don't clutter your series list. Search any title, preview it, and track status, progress and ratings; currently-airing series get a next-episode countdown (with season · episode) and every card shows where to stream it. All three boards share your account, profiles and views.
-- **Auto schedule from [AniList](https://anilist.co)** — add a show and it pulls the air day, air time, and a live next-episode countdown automatically.
-- **Local timezones** — everyone sees air times converted to their own timezone from UTC.
-- **Three views** — a Sun→Sat weekly calendar, a detailed list, and a poster wall.
-- **Accounts & profiles** — Firebase email/password login (with a **Forgot password?** reset-by-email link); pick a display name, accent color, and an avatar: an emoji preset, a custom image URL, or an **anime character portrait** (browse a show's cast from AniList, Crunchyroll-style).
-- **Personal lists, shared space** — everyone has their own list with their own progress/status/rating/notes, and can view anyone else's list read-only. Tap **＋ Add to mine** to copy a show you spotted on a friend's list.
-- **Community dub tracking + predicted release day** — no public API exposes English dub dates, so the group tracks the latest dubbed episode with a shared, bumpable counter. WatchLog then **learns each show's dub weekday** from when the counter is bumped (or you can set it by hand in Edit) and shows the next dub on its expected day in the weekly calendar, with a countdown.
-- **Finished & Dropped sections** — shows you mark Finished or Dropped collapse into their own tucked-away sections instead of cluttering your active lineup.
-- **Watch-sync** — on shows you both track, each card shows where everyone is (e.g. "You · Ep 5 · Demon · Ep 4"), with an "in sync ✓" when matched.
-- **"Pick for us"** — a 🎲 toolbar button picks a random title from your Plan to watch when you can't decide.
-- **Season grouping** — same-show seasons collapse into one expandable card (each season stays separately tracked).
-- **What's new popup** — a ✨ button (and a once-per-version popup) summarizes new features.
-- **Preview before adding** — every search result has an ⓘ button to read the synopsis, genres and streaming links without adding it; add from the preview if it looks good.
-- **Installable app (PWA)** — add to your home screen for a fullscreen, app-like experience that loads offline.
-- **Backup & password** — export your list to a JSON file, and change your password, from your profile.
-- **Delay-aware** — auto-re-syncs when a countdown elapses, shows an honest "expected…/checking" state, and offers a shared "delayed this week" flag that clears itself once the episode airs.
-- **Bulk import** from an AniList username (MyAnimeList via the AniList bridge — see notes).
-- **Genre browse, trending, search-as-you-type, filters & sorting.**
-- **Browse by release day** — in ＋ Add anime, tap a weekday to see everything airing that day in your timezone (great for filling an empty slot).
-- **Ratings** with a per-show group average, **streaming links** (Crunchyroll/Netflix/etc.), **calendar (.ics) export**, and optional **browser notifications** ~1h before a show airs.
-- **Light/dark themes, per-user accent tint, and a mobile-friendly layout** (add to home screen for an app-like feel).
+- **Suggest a game by name**: type a title and pick it from the results. Cover art and a description are pulled in automatically (from [RAWG](https://rawg.io) if a key is set, otherwise Wikipedia). Add a pitch for why the crew should play it.
+- **Crossplay you can trust**: a built-in list of **110 popular multiplayer games** with crossplay checked in October 2026 (full / partial / none, cross-progression, player counts, free-to-play), each with a link to where it was verified. Anything not on the list can be filled in by whoever suggests it.
+- **"Can we all play together?" check**: every card looks at who voted 👍 or 🤷 and what they play on, then says *"All 4 can play together"* or *"3 of 4 together · split: Sam (PS)"*. It understands awkward cases like Deep Rock Galactic, where Xbox and Game Pass PC play together but Steam and PlayStation don't.
+- **Voting**: 👍 I'm in, 🤷 maybe, 👎 not for me. The queue sorts by most wanted, with #1, #2… badges.
+- **Who owns it**: each person marks which platform they have it on (or that they don't own it), so you can see who still needs to buy it.
+- **Prices & deals**: live PC price and the best current deal (with % off) from [CheapShark](https://www.cheapshark.com), refreshed every few days. Console price, Game Pass and PS Plus are tick-boxes anyone can fill in.
+- **Where to get it**: links to Steam, Epic, PlayStation Store, Xbox Store and the cheapest PC deal.
+- **Status tracking**: Suggested → Up next → Playing → Finished / Dropped, with shared notes (server name, mods, game night).
+- **Ideas tab**: browse the 110 checked games, filter by crossplay or type (co-op, survival, party, battle royale…), and suggest one in a tap.
+- **Crew tab**: everyone's platforms plus Steam / Epic / PSN / Xbox / Discord names with copy buttons, so adding each other is easy.
+- **🎲 Pick tonight**: picks a game at random, weighted towards the most-wanted games that the whole interested group can play together.
+- **Filters**: crossplay only, "whole crew fits", free, Game Pass / PS Plus, type, plus sort by most wanted, newest, cheapest or A–Z.
+- **Google sign-in with a join code**: only people with the code you set can see the list. The leader (whoever sets the group up) can remove people and change the code.
+- **Installable app (PWA)**, phone layout with bottom tabs, light / dark / system theme.
 
 ---
 
 ## 🧩 How it works
 
-- **Frontend:** one `index.html` (HTML + CSS + vanilla JS, no dependencies bundled — the Firebase SDK loads from Google's CDN).
-- **Anime data:** the public [AniList GraphQL API](https://docs.anilist.co) (no key required).
-- **Movie/TV data (Shows board):** [TMDB](https://www.themoviedb.org) via a free read token in `CONFIG.TMDB` — see `Docs/Setup guide (TMDB).md`.
-- **Storage & sync:** a Firebase **Firestore** database with live `onSnapshot` updates, and **Firebase Auth** (email/password) for accounts. The app ships the Firebase *web config* (apiKey etc.), which is designed to be public — access is governed by the Firestore security rules in `Firebase/firestore.rules`.
-
-There is no backend to run — hosting is just serving a static file.
-
----
-
-## 🚀 Self-hosting setup
-
-See **`Docs/Setup guide (Firebase).md`** for the full walkthrough. In brief:
-
-1. **Create a Firebase project** at [console.firebase.google.com](https://console.firebase.google.com) (free Spark plan is fine).
-2. **Enable Firestore** (Build → Firestore Database → Create, start in production mode) and **Authentication → Email/Password**.
-3. **Publish the security rules** from `Firebase/firestore.rules` (Firestore → Rules → paste → Publish).
-4. **Register a Web app** (Project settings → Your apps → Web) and copy its config into the `CONFIG.FIREBASE` block near the top of `index.html`:
-
-   ```js
-   const CONFIG = {
-     FIREBASE: {
-       apiKey:            "AIza…",
-       authDomain:        "your-project.firebaseapp.com",
-       projectId:         "your-project",
-       storageBucket:     "your-project.firebasestorage.app",
-       messagingSenderId: "0000000000",
-       appId:             "1:0000000000:web:abc123"
-     },
-   };
-   ```
-
-5. *(Optional — for the 🍿 Shows board)* add a free **TMDB** read token to `CONFIG.TMDB` in `index.html`. See **`Docs/Setup guide (TMDB).md`**. The Anime board works without it.
-6. **Deploy** the `Site/` folder to GitHub Pages (or any static host). Share the link; everyone who opens it and logs in shares the same board. Use `?board=NAME` on the URL to run separate groups off the same database.
-
-> The Firebase web config is safe to commit to a public repo — your data is
-> protected by the Firestore rules, not by hiding the config.
+- **Frontend:** `index.html` (HTML + CSS + vanilla JS) and `data.js` (the built-in crossplay list). The Firebase SDK loads from Google's CDN.
+- **Game details:** [RAWG API](https://rawg.io/apidocs) with a free key, or Wikipedia (no key) as the fallback.
+- **PC prices:** [CheapShark API](https://apidocs.cheapshark.com) (no key).
+- **Storage & sync:** Firebase **Firestore** with live updates and **Firebase Auth** (Google). The Firebase web config in `index.html` is designed to be public; access is controlled by the rules in `Firebase/firestore.rules`.
+- **Demo mode:** with no Firebase config, the app runs entirely in one browser (handy for trying it out).
 
 ---
 
-## 🔁 Migrating from the old Supabase version
+## 🚀 Setup
 
-Earlier builds used Supabase. To move existing lists over, open **`Site/migrate.html`**
-in your browser once per person: paste your Firebase config, load the old data,
-log in with your Firebase account, and pick your profile name — it copies that
-list (progress, ratings, dub days and all) into Firestore under your new account.
-Delete `migrate.html` after everyone's done. Details in the setup guide.
+See **`Docs/Setup guide.md`** for the full browser-only walkthrough. In brief:
+
+1. Create a new Firebase project, turn on **Firestore** and **Google** sign-in, add your GitHub Pages domain to *Authorized domains*.
+2. Publish `Firebase/firestore.rules`.
+3. Paste your Firebase web config into the `CONFIG.FIREBASE` block near the top of the script in `index.html`. *(Optional: add a free RAWG key to `CONFIG.RAWG_KEY`.)*
+4. Upload the contents of `Site/` to a GitHub repo and turn on GitHub Pages.
+5. Open the site, sign in, create the group and choose a join code. Send friends the link and the code.
+
+Use `?group=NAME` on the URL to run a separate group off the same database.
 
 ---
 
 ## 🔄 Updating
-Replace `index.html` in your repo (edit or re-upload) and commit — Pages redeploys automatically in ~1 minute, same link. If a future version needs different data access, update `Firebase/firestore.rules` and re-publish them in the Firebase console.
 
----
+Replace `index.html` (and `data.js` if the crossplay list changed) in the repo and commit. GitHub Pages redeploys in about a minute; a hard refresh (Ctrl+Shift+R) shows it immediately.
 
-## 📖 Using WatchLog
-A friendly end-user walkthrough (great for pasting into Discord) lives in [`watchlog-guide-discord.md`](./watchlog-guide-discord.md). In short: log in, set your profile, add shows via search / genre / trending / import, and track progress, dubs, and delays from the cards.
-
-### Tracking dub release days
-Dubs almost always drop on a fixed weekday each week, but no API publishes that
-day ahead of time — so WatchLog figures it out two ways:
-
-- **Auto-learn (default):** whenever anyone bumps a show's 🎙️ dub counter after
-  a new episode, the date is recorded, the weekday is worked out, and the next
-  dub is predicted as +7 days — shown on that day in the weekly calendar with a
-  countdown (marked *est.*).
-- **Set it by hand:** open a show's **Edit** panel and pick a **Dub release day**
-  (e.g. "Saturdays"). It takes effect immediately, overrides auto-learn, and is
-  shared with the whole group.
-
-Predicted dub days are estimates for the usual weekly cadence (purple in the
-calendar); sub airings from AniList are exact.
+To update the crossplay list, edit `Source/crossplay.json` and regenerate `data.js` with `Source/build_data.py` (or just ask Claude to do it).
 
 ---
 
 ## ⚠️ Notes & limitations
-- **Dub dates** are community-maintained because no free API publishes English dub schedules; WatchLog learns/estimates the weekday rather than guessing exact dates.
-- **MyAnimeList import**: MAL's public list API is restricted. Import your MAL list into AniList (AniList → Settings → Import) and then import from the AniList tab.
-- **Notifications** fire only while the app tab is open (no background push).
-- **Air schedules** reflect the original Japanese/sub broadcast (what AniList tracks).
+
+- **Crossplay changes.** The built-in list was checked in October 2026. Games add crossplay in patches (and occasionally lose it), so anyone can correct a game's crossplay and note from its details panel.
+- **Partial crossplay is simplified** to which platforms play together. Details like "opt-in toggle" or "no cross-invites" are in the note.
+- **Console prices, Game Pass and PS Plus** aren't available from any free API, so they're filled in by the crew.
+- **PC prices** come from CheapShark's store list (Steam, Epic, GOG, Humble, Fanatical and others), in USD.
+- **Wikipedia fallback** gives a shorter description and guesses platforms from the text; check the platform boxes when suggesting.
 
 ---
 
 ## 🙏 Credits
-Anime data from **[AniList](https://anilist.co)**. Movie & TV data from **[TMDB](https://www.themoviedb.org)** (this product uses the TMDB API but is not endorsed or certified by TMDB). Database, auth, and realtime by **[Firebase](https://firebase.google.com)**. Built as a fun project for tracking anime (and everything else) with friends. 📺✨
+
+Game data from **[RAWG](https://rawg.io)** and **[Wikipedia](https://www.wikipedia.org)**. PC prices from **[CheapShark](https://www.cheapshark.com)**. Crossplay research mainly via **[iscrossplay.com](https://iscrossplay.com)** plus publisher pages. Database, auth and realtime by **[Firebase](https://firebase.google.com)**.
 
 ---
 

@@ -1,34 +1,15 @@
-/* WatchLog service worker — offline app shell. Bump CACHE to force an update. */
-const CACHE = "watchlog-v2";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
-
-self.addEventListener("install", e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
+// Squad Queue service worker: network-first for the app shell, offline fallback from cache.
+const CACHE = "squadqueue-v1";
+const SHELL = ["./", "index.html", "data.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
+self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+self.addEventListener("activate", e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
-
-self.addEventListener("activate", e=>{
-  e.waitUntil(
-    caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
-      .then(()=>self.clients.claim())
-  );
-});
-
-self.addEventListener("fetch", e=>{
-  const req = e.request;
-  if(req.method !== "GET") return;
-  const url = new URL(req.url);
-  // Let cross-origin requests (Firebase, AniList, CDNs) go straight to the network.
-  if(url.origin !== location.origin) return;
-  // Navigations: network-first, fall back to the cached shell when offline.
-  if(req.mode === "navigate"){
-    e.respondWith(
-      fetch(req).then(r=>{ const cp=r.clone(); caches.open(CACHE).then(c=>c.put("./index.html", cp)); return r; })
-        .catch(()=>caches.match("./index.html"))
-    );
-    return;
-  }
-  // Other same-origin assets: cache-first, then network (and cache it).
-  e.respondWith(
-    caches.match(req).then(c=> c || fetch(req).then(r=>{ const cp=r.clone(); caches.open(CACHE).then(cc=>cc.put(req, cp)); return r; }))
-  );
+self.addEventListener("fetch", e => {
+  const u = new URL(e.request.url);
+  if (e.request.method !== "GET" || u.origin !== location.origin) return; // never touch Firebase, RAWG, CheapShark etc.
+  e.respondWith(fetch(e.request).then(r => {
+    if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+    return r;
+  }).catch(() => caches.match(e.request).then(m => m || caches.match("index.html"))));
 });
