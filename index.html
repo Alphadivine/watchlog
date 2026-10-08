@@ -453,6 +453,7 @@
   .tag.newtag{background:rgba(77,230,168,.18);color:#4de6a8;font-weight:800}
   .tag.fmt{background:rgba(255,194,92,.16);color:#ffc25c;font-weight:800}
   .newseasons-sec>summary{color:#4de6a8}
+  .recs-sec>summary{color:#ff5c9d}
   .wn-older{margin-top:4px}
   .wn-older>summary{cursor:pointer;color:var(--faint);font-size:13px;padding:6px 0;list-style:none}
   .wn-older>summary:hover{color:var(--text)}
@@ -603,6 +604,7 @@
     <div class="modal-foot">
       <button class="btn ghost" id="removeShow" style="background:rgba(255,92,138,.14);color:var(--pink);border-color:transparent;margin-right:auto">🗑 Remove</button>
       <button class="btn" id="addMineBtn" style="display:none;margin-right:auto">＋ Add to my list</button>
+      <button class="btn ghost" id="recBtn" style="display:none">💌 Recommend</button>
       <button class="btn ghost" id="closeEdit">Close</button>
       <button class="btn" id="saveEdit">Save</button>
     </div>
@@ -713,6 +715,24 @@
   </div>
 </div>
 
+<!-- Recommend modal -->
+<div class="overlay" id="recOverlay">
+  <div class="modal" style="max-width:420px">
+    <h3>💌 Recommend</h3>
+    <div class="content">
+      <div id="recTitle" style="font-weight:700;margin:0 0 10px"></div>
+      <label class="fld" style="margin-top:0">To</label>
+      <select class="filter" id="recTo" style="width:100%"></select>
+      <label class="fld">Note <span style="color:var(--faint);font-weight:400">(optional)</span></label>
+      <textarea id="recNote" rows="2" placeholder="Why they should watch it…"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="recCancel">Cancel</button>
+      <button class="btn" id="recSend">💌 Send</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -752,8 +772,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06g";
+const APP_VERSION = "2026.10.06h";
 const WHATS_NEW = [
+  { v:"2026.10.06h", title:"Recommend titles to each other", items:[
+    "💌 <b>Recommendations</b> — tap the 💌 on any card (or in a title's details) to recommend it to a specific friend or to everyone, with an optional note. They'll see it in a <b>📬 Recommended to you</b> section at the top of the matching board, with one-tap <b>Add to my list</b> or Dismiss. Works for anime, shows and movies.",
+    "<i>One-time setup:</i> this needs the updated Firebase rules (a new <b>recs</b> collection) published in your Firebase console — see the setup guide.",
+  ]},
   { v:"2026.10.06g", title:"New-season discovery for anime", items:[
     "🆕 <b>New seasons for your anime</b> — WatchLog now spots when a show you track gets a <b>new season/sequel announced or airing</b> that isn't on your list yet (via AniList's sequel links), and surfaces it in a callout at the top of the Anime board with one-tap <b>＋ Add to my list</b>. No more missing a new season drop.",
   ]},
@@ -877,6 +901,10 @@ const LocalStore = {
   async addMany(rows){ const a=this._read(); const saved=rows.map((r,i)=>({...r,id:"loc_"+Date.now()+"_"+i+"_"+Math.floor(Math.random()*1e4)})); a.push(...saved); this._write(a); return saved; },
   async update(id,patch){ const a=this._read(); const i=a.findIndex(x=>x.id===id); if(i>=0){a[i]={...a[i],...patch}; this._write(a);} },
   async remove(id){ this._write(this._read().filter(x=>x.id!==id)); },
+  async listRecs(){ return []; },      // recommendations are a cloud-only (multi-user) feature
+  async addRec(){ return null; },
+  async updateRec(){},
+  async deleteRec(){},
   onChange(){ /* single device */ }
 };
 
@@ -913,11 +941,25 @@ const CloudStore = {
     await fb.db.collection("profiles").doc(myUid).set(data,{merge:true});
     return {id:myUid, ...data};
   },
+  // ---- Recommendations (a separate "recs" collection) ----
+  async listRecs(){
+    try{ const snap=await fb.db.collection("recs").where("board_id","==",BOARD_ID).get();
+      return snap.docs.map(d=>({id:d.id, ...d.data()})); }
+    catch(e){ console.warn("recs load",e.message); return []; }
+  },
+  async addRec(rec){
+    const payload={...rec, board_id:BOARD_ID, from_uid:myUid, created_at:Date.now(), dismissed_by:[]};
+    const ref=await fb.db.collection("recs").add(payload);
+    return {id:ref.id, ...payload};
+  },
+  async updateRec(id,patch){ await fb.db.collection("recs").doc(id).update(patch); },
+  async deleteRec(id){ await fb.db.collection("recs").doc(id).delete(); },
   onChange(cb){
-    // Live updates for both collections. Ignore the initial local snapshots' noise;
+    // Live updates for the collections. Ignore the initial local snapshots' noise;
     // reload() is cheap and idempotent.
     fb.db.collection("shows").where("board_id","==",BOARD_ID).onSnapshot(()=>cb(), e=>console.warn("shows live",e.message));
     fb.db.collection("profiles").onSnapshot(()=>cb(), e=>console.warn("profiles live",e.message));
+    fb.db.collection("recs").where("board_id","==",BOARD_ID).onSnapshot(()=>cb(), e=>console.warn("recs live",e.message));
   }
 };
 
@@ -936,6 +978,8 @@ let store = LocalStore;
 
 /* ---------------- State ---------------- */
 let shows = [];          // stored rows
+let recs = [];           // recommendations (cloud only)
+let recMedia = null;     // the title currently being recommended (in the Recommend modal)
 const live = new Map();  // anilistId -> live airing data (anime, from AniList)
 const tlive = new Map(); // "tv:ID"/"movie:ID" -> live detail (shows, from TMDB)
 let boardKind = (()=>{ try{ let k=localStorage.getItem("watchlog:boardKind")||"anime"; if(k==="shows") k="show"; return k; }catch(e){ return "anime"; } })();  // "anime" | "show" (TV) | "movie"
@@ -1372,6 +1416,7 @@ function showCardTv(s){
       <div class="rowbtns" style="margin-top:8px">
         ${addMine}
         ${(newFlag && !ro && iOwnThis)?`<button class="btn ghost sm" data-act="resume" data-id="${s.id}" title="Move back to Watching">▶ Pick back up</button>`:""}
+        ${canRecommend()?`<button class="icon-btn" data-act="rec" data-id="${s.id}" title="Recommend to a friend">💌</button>`:""}
         ${ro?"":`<button class="icon-btn" data-act="edit" data-id="${s.id}" title="Edit">✏️</button>`}
         ${s.site_url?`<a class="icon-btn" href="${esc(s.site_url)}" target="_blank" title="TMDB page">🔗</a>`:""}
       </div>
@@ -1676,6 +1721,41 @@ function newSeasonsCalloutHTML(){
   return `<details class="finished-sec newseasons-sec"><summary>🆕 New seasons for your anime · ${newSeasonsList.length} <span style="font-weight:400;opacity:.7">— sequels not on your list yet</span></summary>
     <div class="grid-list">${newSeasonsList.map(seqCardHTML).join("")}</div></details>`;
 }
+
+/* ---- Recommendations (receive side) ---- */
+function recIdent(r){ return r.kind==="show" ? ("t:"+(r.media_type||"tv")+":"+r.tmdb_id) : ("a:"+r.anilist_id); }
+function recOnMyList(r){ const k=recIdent(r); return showsForUid(meId()).some(s=>showIdent(s)===k); }
+function recsForMe(){
+  if(!usingCloud || !loggedIn()) return [];
+  const me=meId();
+  return recs.filter(r=> r.from_uid!==me && (r.to_uid===me || r.to_uid==="all")
+    && (r.dismissed_by||[]).indexOf(me)<0 && !recOnMyList(r));
+}
+function recBoardKind(r){ return r.kind==="show" ? ((r.media_type||"tv")==="movie" ? "movie":"show") : "anime"; }
+function recsForBoard(){ return recsForMe().filter(r=>recBoardKind(r)===boardKind); }
+function recCardHTML(r){
+  const img = r.kind==="anime" ? hiRes(r.cover) : r.cover;
+  const cover=r.cover?`style="background-image:url('${esc(img)}')"`:"";
+  const toAll = r.to_uid==="all";
+  return `<div class="show" data-id="rec_${r.id}">
+    <div class="cover" ${cover}></div>
+    <div class="body">
+      <p class="title">${esc(r.title)}</p>
+      <div class="meta"><span class="tag newtag">💌 Recommended</span><span class="tag" title="Who recommended it">${avatarHTML(r.from_uid,"sm")} ${esc(displayName(r.from_uid))}${toAll?" · to everyone":""}</span></div>
+      ${r.note?`<div class="notes">💬 ${esc(r.note)}</div>`:""}
+      <div class="rowbtns" style="margin-top:8px">
+        <button class="btn ghost sm" data-act="addrec" data-id="${r.id}">＋ Add to my list</button>
+        <button class="icon-btn" data-act="dismissrec" data-id="${r.id}" title="Dismiss">✕</button>
+        ${r.site_url?`<a class="icon-btn" href="${esc(r.site_url)}" target="_blank" title="More info">🔗</a>`:""}
+      </div>
+    </div></div>`;
+}
+function recsCalloutHTML(){
+  if(!usingCloud || isReadOnly()) return "";
+  const list=recsForBoard();
+  if(!list.length) return "";
+  return `<details class="finished-sec recs-sec" open><summary>📬 Recommended to you · ${list.length}</summary><div class="grid-list">${list.map(recCardHTML).join("")}</div></details>`;
+}
 function showCard(s){
   if((s.kind||"anime")==="show") return showCardTv(s);
   const a = airInfo(s.anilistId);
@@ -1751,6 +1831,7 @@ function showCard(s){
       ${s.notes?`<div class="notes">📝 ${esc(s.notes)}</div>`:""}
       <div class="rowbtns" style="margin-top:8px">
         ${addMine}
+        ${canRecommend()?`<button class="icon-btn" data-act="rec" data-id="${s.id}" title="Recommend to a friend">💌</button>`:""}
         ${ro?"":`<button class="icon-btn" data-act="edit" data-id="${s.id}" title="Edit">✏️</button>`}
         ${a.cd==="upcoming"?`<button class="icon-btn" data-act="cal" data-id="${s.id}" title="Add next episode to calendar">📅</button>`:""}
         ${s.site_url||s.siteUrl?`<a class="icon-btn" href="${esc(s.site_url||s.siteUrl)}" target="_blank" title="AniList page">🔗</a>`:""}
@@ -1849,7 +1930,7 @@ function renderWeek(){
     if(slot.kind==="ended"){ ended.push(s); return; }             // series finished airing (shows)
     onBreak.push(s);                                              // between seasons / caught up
   });
-  let html=newSeasonsCalloutHTML()+`<div class="week">`;   // anime: sequels not on your list yet
+  let html=recsCalloutHTML()+newSeasonsCalloutHTML()+`<div class="week">`;   // recs + (anime) sequels
   order.forEach(d=>{
     const items=byDay[d].sort((x,y)=>x.at-y.at);
     html+=`<div class="daycol ${d===today?"today":""}">
@@ -1909,13 +1990,14 @@ function renderList(){
     ended=[...endedSet];
     var activeMain=active.filter(s=>!endedSet.has(s));
   } else { var activeMain=active; }
+  const recHtml = recsCalloutHTML();        // titles others recommended to you
   const nsHtml = newSeasonsCalloutHTML();   // anime: sequels not on your list yet
-  let html = nsHtml;
+  let html = recHtml + nsHtml;
   if(newSeason.length){
     html += `<h3 class="sec-h">🆕 New since you finished <span class="sec-note">a new season has arrived — tap ▶ Pick back up to resume</span></h3><div class="grid-list">${renderGrouped(newSeason, showCard)}</div>`;
   }
   html += activeMain.length ? `<div class="grid-list">${renderGrouped(activeMain, showCard)}</div>`
-                           : ((ended.length||newSeason.length||nsHtml) ? "" : `<div class="hint" style="padding:24px 4px">Nothing active right now — see Finished / Dropped below.</div>`);
+                           : ((ended.length||newSeason.length||nsHtml||recHtml) ? "" : `<div class="hint" style="padding:24px 4px">Nothing active right now — see Finished / Dropped below.</div>`);
   if(ended.length){
     html += `<details class="finished-sec" open><summary>✅ Ended · ${ended.length} <span style="font-weight:400;opacity:.7">— no more episodes</span></summary><div class="grid-list">${renderGrouped(ended, showCard)}</div></details>`;
   }
@@ -1947,8 +2029,9 @@ function posterCard(s){
 function renderPosters(){
   const root=$("#viewRoot");
   const list=visibleShows();
-  if(!list.length){ root.innerHTML=emptyState(); return; }
-  root.innerHTML=`<div class="posterwall">${list.map(posterCard).join("")}</div>`;
+  const recHtml=recsCalloutHTML();
+  if(!list.length){ root.innerHTML= recHtml || emptyState(); return; }
+  root.innerHTML=recHtml+`<div class="posterwall">${list.map(posterCard).join("")}</div>`;
 }
 function emptyState(){
   if(usingCloud && !loggedIn()) return `<div class="empty-state"><div class="big">🔐</div>
@@ -2077,6 +2160,7 @@ async function reload(){
       if(myUid && profilesMap.get(myUid)) myProfile=profilesMap.get(myUid);
     }
     shows=(await store.list()).map(normalize);
+    if(usingCloud) recs=await store.listRecs();
     if(usingCloud && myUid) await claimLegacy();
     if(viewingUid==null) viewingUid = loggedIn() ? meId() : (allOwnerIds()[0]||null);
     render(); refreshLiveSoon(); refreshTmdbSoon(true);
@@ -2211,6 +2295,65 @@ async function resumeShow(id){
   Object.assign(s,patch); render();
   try{ await store.update(id,patch); toast("Moved “"+s.title+"” back to Watching"); }catch(e){ toast(saveErr(e)); }
 }
+
+/* ---- Recommendations (send side) ---- */
+function canRecommend(){ return usingCloud && loggedIn() && profilesMap.size>1; }
+function recPayloadFromShow(s){
+  return (s.kind||"anime")==="show"
+    ? {kind:"show", tmdbId:s.tmdbId, mediaType:s.mediaType||"tv", title:s.title, cover:s.cover, siteUrl:s.site_url}
+    : {kind:"anime", anilistId:s.anilistId, title:s.title, cover:s.cover, siteUrl:s.site_url||s.siteUrl};
+}
+function openRec(p){
+  if(!canRecommend()){ toast("Add a friend to the board first to recommend titles."); return; }
+  recMedia=p;
+  $("#recTitle").textContent=p.title||"";
+  const me=meId();
+  const others=[...profilesMap.keys()].filter(u=>u!==me);
+  $("#recTo").innerHTML = `<option value="all">👥 Everyone</option>`+others.map(u=>`<option value="${esc(u)}">${esc(displayName(u))}</option>`).join("");
+  $("#recNote").value="";
+  $("#recOverlay").classList.add("show"); setTimeout(()=>$("#recTo").focus(),50);
+}
+function openRecFromShow(id){ const s=shows.find(x=>x.id===id); if(s) openRec(recPayloadFromShow(s)); }
+async function recSend(){
+  if(!recMedia) return;
+  if(!loggedIn()){ openAuth(); return; }
+  const to=$("#recTo").value||"all"; const note=$("#recNote").value.trim();
+  const rec={ to_uid:to, kind:recMedia.kind, title:recMedia.title, cover:recMedia.cover||"", site_url:recMedia.siteUrl||"", note };
+  if(recMedia.kind==="show"){ rec.tmdb_id=recMedia.tmdbId; rec.media_type=recMedia.mediaType||"tv"; }
+  else { rec.anilist_id=recMedia.anilistId; }
+  try{
+    const saved=await store.addRec(rec);
+    if(saved) recs.push(saved);
+    $("#recOverlay").classList.remove("show");
+    toast("💌 Recommended “"+recMedia.title+"” "+(to==="all"?"to everyone":"to "+displayName(to)));
+    recMedia=null; render();
+  }catch(e){ toast("Couldn't send: "+(e.message||e)); }
+}
+async function addRecToList(id){
+  const r=recs.find(x=>x.id===id); if(!r) return;
+  if(r.kind==="show") await addTmdb({tmdbId:r.tmdb_id, mediaType:r.media_type, title:r.title, cover:r.cover, site_url:r.site_url});
+  else await addShow({id:Number(r.anilist_id), title:r.title, cover:r.cover, site_url:r.site_url});
+}
+async function dismissRec(id){
+  const r=recs.find(x=>x.id===id); if(!r) return;
+  const me=meId();
+  r.dismissed_by=[...(r.dismissed_by||[]), me]; render();
+  try{ await store.updateRec(id, {dismissed_by: window.firebase.firestore.FieldValue.arrayUnion(me)}); }catch(e){}
+}
+$("#recCancel").onclick=()=>$("#recOverlay").classList.remove("show");
+$("#recSend").onclick=recSend;
+$("#recOverlay").addEventListener("click",e=>{ if(e.target===$("#recOverlay")) $("#recOverlay").classList.remove("show"); });
+// Recommend from the detail/preview modal (covers search results, not just tracked titles).
+$("#recBtn").onclick=()=>{
+  let p=null;
+  if(previewMedia){
+    p = previewIsTv
+      ? {kind:"show", tmdbId:previewMedia.tmdbId, mediaType:previewMedia.mediaType, title:previewMedia.title, cover:previewMedia.cover, siteUrl:previewMedia.site_url}
+      : {kind:"anime", anilistId:previewMedia.id, title:previewMedia.title, cover:previewMedia.cover, siteUrl:previewMedia.site_url};
+  } else { const s=shows.find(x=>x.id===editingKey); if(s) p=recPayloadFromShow(s); }
+  if(p){ $("#editOverlay").classList.remove("show"); openRec(p); }
+};
+function syncRecBtn(){ const b=$("#recBtn"); if(b) b.style.display = canRecommend()?"":"none"; }
 async function bump(id,delta){
   const s=shows.find(x=>x.id===id); if(!s) return;
   const a=airInfo(s.anilistId); const before=s.progress||0;
@@ -2316,7 +2459,7 @@ function openPreviewTv(m){
   const ab=$("#addMineBtn"); ab.textContent=already?"✓ Already on your list":"＋ Add to my list"; ab.disabled=already; ab.style.display=loggedIn()?"":"none";
   setEditAnimeFieldsVisible(false);
   fillDetailsShow({id:editingKey, tmdbId:m.tmdbId, mediaType:m.mediaType, cover:m.cover, title:m.title, site_url:m.site_url});
-  $("#editOverlay").classList.add("show");
+  syncRecBtn(); $("#editOverlay").classList.add("show");
 }
 // Preview an anime from the search results — shows its synopsis without adding it.
 function openPreview(m){
@@ -2334,7 +2477,7 @@ function openPreview(m){
   ab.disabled = already;
   ab.style.display = loggedIn() ? "" : "none";
   fillDetails({ id:editingKey, anilistId:m.id, cover:m.cover, title:m.title, site_url:m.site_url });
-  $("#editOverlay").classList.add("show");
+  syncRecBtn(); $("#editOverlay").classList.add("show");
 }
 function openEdit(id){
   const s=shows.find(x=>x.id===id); if(!s) return;
@@ -2363,7 +2506,7 @@ function openEdit(id){
     const pc=$("#progCol"); if(pc) pc.style.display=movie?"none":"";
     const pl=$("#progLbl"); if(pl) pl.textContent="Episode (this season)";
     fillDetailsShow(s);
-    $("#editOverlay").classList.add("show");
+    syncRecBtn(); $("#editOverlay").classList.add("show");
     return;
   }
   setEditAnimeFieldsVisible(true);
@@ -2383,7 +2526,7 @@ function openEdit(id){
   $("#editNotes").value=s.notes||"";
   $("#editSeries").value=s.series||"";
   fillDetails(s);
-  $("#editOverlay").classList.add("show");
+  syncRecBtn(); $("#editOverlay").classList.add("show");
 }
 let editDelayEp=null, editDelayOn=false;
 function updateDelayBtn(){ const b=$("#editDelay"); if(!b) return;
@@ -2702,6 +2845,9 @@ document.addEventListener("click",e=>{
   else if(act==="resume") resumeShow(id);
   else if(act==="addseq"){ const m=newSeasonsList.find(x=>String(x.id)===String(id));
     if(m){ newSeasonsList=newSeasonsList.filter(x=>String(x.id)!==String(id)); render(); addShow({id:Number(m.id), title:m.title, cover:m.cover, site_url:m.siteUrl, status:m.status}); } }
+  else if(act==="rec") openRecFromShow(id);
+  else if(act==="addrec") addRecToList(id);
+  else if(act==="dismissrec") dismissRec(id);
   else if(act==="dubinc") setDub(id,1); else if(act==="dubdec") setDub(id,-1);
   else if(act==="addmine") addFromShow(id);
   else if(act==="edit") openEdit(id); else if(act==="cal") addToCalendar(id);

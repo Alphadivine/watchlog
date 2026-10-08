@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10 — Recommend titles to each other
+- **Recommendations** — tap the **💌** on any card (or in a title's details, incl.
+  search results) to recommend it to **a specific friend or to everyone**, with an
+  optional note. Recipients see it in a **📬 Recommended to you** section at the top
+  of the matching board, with one-tap **Add to my list** or **Dismiss**. Works for
+  anime, TV shows and movies; a recommendation disappears once you add it or dismiss
+  it, and never shows something already on your list.
+- **Setup:** adds a new Firestore **recs** collection — re-publish
+  `Firebase/firestore.rules` in the Firebase console (see the Firebase setup guide)
+  or recommendations can't be saved. (Local/solo mode doesn't show the feature.)
+
 ## 2026-10 — Smaller "What's new" + smarter add defaults
 - **Shorter "What's new" popup** — the auto-popup now shows only what's changed
   **since you last looked** (usually a single entry), and the ✨ history view shows
