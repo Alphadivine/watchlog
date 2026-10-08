@@ -1,12 +1,13 @@
 # Changelog
 
 ## 2026-10 — New-season discovery for anime
-- **"New seasons for your anime" callout** — WatchLog scans the sequel links of the
-  anime you track and surfaces any **new season/sequel that's announced or airing
-  but not on your list yet** at the top of the Anime board, with a one-tap **＋ Add
-  to my list**. So a new season dropping no longer slips by just because it's a
-  separate AniList entry. (Verified live: found 12 upcoming sequels across a
-  70-title list — Frieren S3, Dandadan S3, Shield Hero S5, etc.)
+- **"New seasons for your anime"** — WatchLog scans the sequel links of the anime
+  you track and surfaces any **new season/sequel that's announced or airing but not
+  on your list yet**, with a one-tap **＋ Add to my list**. So a new season dropping
+  no longer slips by just because it's a separate AniList entry. It sits in a
+  **collapsed bar** at the top of the Anime board (showing the count) so it doesn't
+  crowd the screen — expand it when you want to browse. (Verified live: 12 upcoming
+  sequels across a 70-title list — Frieren S3, Dandadan S3, Shield Hero S5, etc.)
 - Added a sequel-details query (`SEQ_Q`); results are cached and refreshed with the
   rest of the live data.
 

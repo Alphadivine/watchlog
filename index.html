@@ -452,6 +452,7 @@
   .pw-eye:hover{opacity:1}
   .tag.newtag{background:rgba(77,230,168,.18);color:#4de6a8;font-weight:800}
   .tag.fmt{background:rgba(255,194,92,.16);color:#ffc25c;font-weight:800}
+  .newseasons-sec>summary{color:#4de6a8}
 </style>
 </head>
 <body>
@@ -1668,8 +1669,9 @@ function seqCardHTML(m){
 }
 function newSeasonsCalloutHTML(){
   if(boardKind!=="anime" || isReadOnly() || !newSeasonsList.length) return "";
-  return `<h3 class="sec-h">🆕 New seasons for your anime <span class="sec-note">sequels to shows you track that aren't on your list yet</span></h3>
-    <div class="grid-list">${newSeasonsList.map(seqCardHTML).join("")}</div>`;
+  // Collapsed by default so it doesn't dominate the board — a one-line bar with the count.
+  return `<details class="finished-sec newseasons-sec"><summary>🆕 New seasons for your anime · ${newSeasonsList.length} <span style="font-weight:400;opacity:.7">— sequels not on your list yet</span></summary>
+    <div class="grid-list">${newSeasonsList.map(seqCardHTML).join("")}</div></details>`;
 }
 function showCard(s){
   if((s.kind||"anime")==="show") return showCardTv(s);
