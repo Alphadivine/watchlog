@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10 — Hide boards you don't use
+- **Choose your boards** — in your profile, under **Boards to show**, you can hide
+  🎌 Anime, 🍿 Shows and/or 🎬 Movies tabs you don't care about. It's a per-person
+  (per-device) preference, so a movies-only friend can hide anime entirely. You're
+  always left with at least one board; if only one remains, the toggle hides itself,
+  and if you were on a board you just hid, it switches to a visible one.
+
 ## 2026-10 — Recommend titles to each other
 - **Recommendations** — tap the **💌** on any card (or in a title's details, incl.
   search results) to recommend it to **a specific friend or to everyone**, with an

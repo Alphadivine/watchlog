@@ -454,6 +454,9 @@
   .tag.fmt{background:rgba(255,194,92,.16);color:#ffc25c;font-weight:800}
   .newseasons-sec>summary{color:#4de6a8}
   .recs-sec>summary{color:#ff5c9d}
+  .boardprefs{display:flex;flex-wrap:wrap;gap:12px}
+  .boardprefs label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px}
+  .boardprefs input{width:16px;height:16px;cursor:pointer}
   .wn-older{margin-top:4px}
   .wn-older>summary{cursor:pointer;color:var(--faint);font-size:13px;padding:6px 0;list-style:none}
   .wn-older>summary:hover{color:var(--text)}
@@ -685,6 +688,12 @@
       </div>
       <label class="fld">Accent color</label>
       <div class="colgrid" id="colorGrid"></div>
+      <label class="fld">Boards to show <span style="color:var(--faint);font-weight:400">(hide the ones you don't use)</span></label>
+      <div id="boardPrefs" class="boardprefs">
+        <label><input type="checkbox" data-board="anime"> 🎌 Anime</label>
+        <label><input type="checkbox" data-board="show"> 🍿 Shows</label>
+        <label><input type="checkbox" data-board="movie"> 🎬 Movies</label>
+      </div>
       <hr class="prof-sep" />
       <div id="pwRow" style="display:none">
         <label class="fld">🔐 Change password</label>
@@ -772,8 +781,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06h";
+const APP_VERSION = "2026.10.06i";
 const WHATS_NEW = [
+  { v:"2026.10.06i", title:"Hide boards you don't use", items:[
+    "🙈 <b>Choose your boards</b> — in your profile, under <b>Boards to show</b>, untick 🎌 Anime, 🍿 Shows or 🎬 Movies to hide the tabs you don't care about. It's per person, so a movies-only friend can hide anime entirely. (If you hide all but one, the toggle just disappears.)",
+  ]},
   { v:"2026.10.06h", title:"Recommend titles to each other", items:[
     "💌 <b>Recommendations</b> — tap the 💌 on any card (or in a title's details) to recommend it to a specific friend or to everyone, with an optional note. They'll see it in a <b>📬 Recommended to you</b> section at the top of the matching board, with one-tap <b>Add to my list</b> or Dismiss. Works for anime, shows and movies.",
     "<i>One-time setup:</i> this needs the updated Firebase rules (a new <b>recs</b> collection) published in your Firebase console — see the setup guide.",
@@ -983,6 +995,12 @@ let recMedia = null;     // the title currently being recommended (in the Recomm
 const live = new Map();  // anilistId -> live airing data (anime, from AniList)
 const tlive = new Map(); // "tv:ID"/"movie:ID" -> live detail (shows, from TMDB)
 let boardKind = (()=>{ try{ let k=localStorage.getItem("watchlog:boardKind")||"anime"; if(k==="shows") k="show"; return k; }catch(e){ return "anime"; } })();  // "anime" | "show" (TV) | "movie"
+// Per-device preference: boards (tabs) this person has chosen to hide.
+let hiddenBoards = (()=>{ try{ return new Set(JSON.parse(localStorage.getItem("watchlog:hiddenBoards")||"[]")); }catch(e){ return new Set(); } })();
+const ALL_BOARDS = ["anime","show","movie"];
+function visibleBoards(){ const v=ALL_BOARDS.filter(k=>!hiddenBoards.has(k)); return v.length?v:ALL_BOARDS.slice(); }   // never hide everything
+function boardVisible(k){ return visibleBoards().indexOf(k)>=0; }
+function saveHiddenBoards(){ try{ localStorage.setItem("watchlog:hiddenBoards", JSON.stringify([...hiddenBoards])); }catch(e){} }
 // Which board a row belongs to: anime, show (TV), or movie.
 function onBoard(s){ const k=s.kind||"anime"; if(boardKind==="anime") return k==="anime"; const mv=(s.mediaType||"tv")==="movie"; return k==="show" && (boardKind==="movie"?mv:!mv); }
 function isTmdbBoard(){ return boardKind!=="anime"; }
@@ -2786,6 +2804,11 @@ $("#addMineBtn").onclick=async()=>{ const id=editingKey; const pm=previewMedia; 
 $("#refreshBtn").onclick=()=>{ if(isTmdbBoard()) refreshTmdb(); else refreshLive(); toast("Refreshing…"); };
 // ---- Anime / Shows board toggle ----
 function applyBoardUI(){
+  // If the current board has been hidden by this user, switch to the first visible one.
+  if(!boardVisible(boardKind)){ boardKind=visibleBoards()[0]; try{ localStorage.setItem("watchlog:boardKind",boardKind); }catch(e){} }
+  // Hide the tabs this user chose to hide; hide the whole toggle if only one remains.
+  const seg0=$("#boardSeg"); if(seg0) [...seg0.children].forEach(b=>{ b.style.display = boardVisible(b.dataset.board) ? "" : "none"; });
+  const wrap=document.querySelector(".boardseg-wrap"); if(wrap) wrap.style.display = (visibleBoards().length>1) ? "flex" : "none";
   const tmdb=isTmdbBoard();
   // Movies have no weekly cadence — hide the Weekly view on that board (fall back to List).
   const wk=document.querySelector('#viewSeg button[data-view="week"]'); if(wk) wk.style.display = boardKind==="movie" ? "none":"";
@@ -2929,6 +2952,7 @@ function openProfile(){
   $("#charResults").innerHTML=`<div class="hint" style="font-size:12px;margin:0">Search a show above, or tap one of yours, then pick a character.</div>`;
   $("#tmdbCharSearch").value=""; renderTmdbCharMine();
   $("#tmdbCharResults").innerHTML=`<div class="hint" style="font-size:12px;margin:0">Search a movie or show above, or tap one of yours, then pick a cast member.</div>`;
+  [...document.querySelectorAll('#boardPrefs input')].forEach(c=>{ c.checked = !hiddenBoards.has(c.dataset.board); });
   $("#profileOverlay").classList.add("show"); setTimeout(()=>$("#profName").focus(),50);
 }
 /* ---- Anime-character avatar picker (browse by anime → pick a character) ---- */
@@ -3092,6 +3116,11 @@ $("#profUrl").addEventListener("input",updateProfPreview);
 async function saveProfile(){
   const name=$("#profName").value.trim();
   if(!name){ $("#profName").focus(); return; }
+  // Board visibility (per-device). Never let the user hide every board.
+  const checks=[...document.querySelectorAll('#boardPrefs input')];
+  const hidden=checks.filter(c=>!c.checked).map(c=>c.dataset.board);
+  if(hidden.length<ALL_BOARDS.length){ hiddenBoards=new Set(hidden); } else { hiddenBoards=new Set(); }
+  saveHiddenBoards(); applyBoardUI();
   const prof={name, avatar:currentAvatarValue(), color:pickColor};
   try{
     if(usingCloud){
