@@ -2238,8 +2238,8 @@ async function refreshDubSchedules(){
   if(!ids.length) return;
   asDubFetching=true;
   try{
-    // AniList IDs → dub info; chunk at 50 (Worker's per-request cap).
-    const chunks=[]; for(let i=0;i<ids.length;i+=50) chunks.push(ids.slice(i,i+50));
+    // AniList IDs → dub info; chunk small so the Worker stays under its subrequest/rate limits.
+    const chunks=[]; for(let i=0;i<ids.length;i+=40) chunks.push(ids.slice(i,i+40));
     let changed=false;
     for(const c of chunks){
       const r=await fetch(`${base}/dubs?anilist=${c.join(",")}`);
