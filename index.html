@@ -741,7 +741,7 @@
       <p class="guide-intro">WatchLog keeps you and your friends on the same page for everything you're watching. Here's the quick tour:</p>
       <div class="guide-step"><div class="gi">🎌</div><div class="gt"><b>Three boards.</b> Switch between <b>Anime</b>, <b>Shows</b> (TV) and <b>Movies</b> using the tabs up top. Don't use one? Hide it in your profile under <b>Boards to show</b>.</div></div>
       <div class="guide-step"><div class="gi">➕</div><div class="gt"><b>Add a title.</b> Tap the <b>＋</b> button, search for anything, or hit <b>🔥 Trending</b> to browse what's hot. Pick it and it lands on your list.</div></div>
-      <div class="guide-step"><div class="gi">🏷️</div><div class="gt"><b>Set a status.</b> Mark each title <b>Watching</b>, <b>Plan to watch</b> or <b>Finished</b>. Titles that haven't aired yet wait in <b>Coming soon</b> until release day.</div></div>
+      <div class="guide-step"><div class="gi">🏷️</div><div class="gt"><b>Statuses — what they mean.</b> <b>Watching</b> = keeping up; <b>Caught up</b> = seen everything out so far, waiting on more; <b>Plan to watch</b> = saved for later (unaired titles wait in <b>Coming soon</b>); <b>Finished</b> = done, so it tucks into the collapsed <b>✔ Finished</b> section and stops counting down; <b>Dropped</b> = gave up, in its own section. For anime, each season is its own entry — finishing one doesn't touch the others, and a new season turns up in the <b>🆕 New seasons</b> callout to add.</div></div>
       <div class="guide-step"><div class="gi">📺</div><div class="gt"><b>Track your progress.</b> Use the season/episode steppers on a card to log where you are, and the 🎙️ counter for dub episodes. Everyone sees it update live.</div></div>
       <div class="guide-step"><div class="gi">💌</div><div class="gt"><b>Recommend to friends.</b> Tap the <b>💌</b> on any card to suggest it to one person or everyone, with an optional note. They get it in a <b>📬 Recommended to you</b> section.</div></div>
       <div class="guide-step"><div class="gi">🆕</div><div class="gt"><b>Never miss a new season.</b> WatchLog flags new seasons of anime you track and shows you finished, right at the top of the board.</div></div>
@@ -809,8 +809,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06k";
+const APP_VERSION = "2026.10.06l";
 const WHATS_NEW = [
+  { v:"2026.10.06l", title:"Guide now explains the statuses", items:[
+    "🏷️ <b>What the statuses mean</b> — the <b>❓ Help</b> guide now spells out <b>Watching</b>, <b>Caught up</b>, <b>Plan to watch</b>, <b>Finished</b> and <b>Dropped</b> (and what happens to an anime when you mark a season <b>Finished</b>).",
+  ]},
   { v:"2026.10.06k", title:"New: a built-in how-to guide", items:[
     "❓ <b>How to use WatchLog</b> — tap the new <b>❓ Help</b> button in the top bar any time for a quick tour of the essentials (boards, adding titles, statuses, progress, recommendations, profiles). It also pops up once for brand-new users right after they set up their profile.",
   ]},

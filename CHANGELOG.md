@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10 — Guide explains the statuses
+- **Status meanings in the Help guide** — the ❓ Help guide now spells out what each
+  status does: **Watching** (keeping up), **Caught up** (seen everything out so far,
+  waiting on more), **Plan to watch** (saved for later), **Finished** (done — tucks
+  into the collapsed ✔ Finished section and stops counting down), **Dropped** (gave
+  up). Also clarifies that for anime each season is its own entry, so finishing one
+  doesn't affect the others and a new season surfaces in the 🆕 New seasons callout.
+
 ## 2026-10 — Built-in "How to use" guide
 - **❓ Help button** — a new **❓ Help** button in the top bar opens a short, friendly
   tour of the essentials: the three boards, adding titles, statuses & Coming soon,
