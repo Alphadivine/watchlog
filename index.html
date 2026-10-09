@@ -800,6 +800,12 @@ const CONFIG = {
     img:    "https://image.tmdb.org/t/p/",
     region: "US"
   },
+  // Optional: auto-fill English-dub release info from AnimeSchedule.net via your own
+  // Cloudflare Worker (see Docs/Setup guide (AnimeSchedule dubs).md). Leave blank to
+  // turn the feature off; the manual 🎙️ counter works either way.
+  ANIMESCHEDULE: {
+    worker: "https://watchlog-dubs.quentinclayton643.workers.dev"   // Cloudflare Worker relaying AnimeSchedule dub data
+  },
 };
 // Which shared board this page uses. Everyone on the same board sees the same list.
 // Add ?board=friends to the URL to use a different shared board.
@@ -809,8 +815,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06l";
+const APP_VERSION = "2026.10.06m";
 const WHATS_NEW = [
+  { v:"2026.10.06m", title:"Auto dub dates (AnimeSchedule)", items:[
+    "🎙️ <b>Dub dates fill in automatically</b> — WatchLog can now pull English-dub release info (the weekly dub day + an estimated latest dub episode) from <b>AnimeSchedule</b>, so you don't have to track every dub by hand. It's marked <b>· AnimeSchedule</b> / <i>est.</i> to set it apart, and your manual <b>🎙️</b> counter always wins.",
+    "<i>One-time setup:</i> this needs a small Cloudflare Worker (free, no token) — see <b>Docs/Setup guide (AnimeSchedule dubs).md</b>. Until it's set up, nothing changes and the manual counter works as before.",
+  ]},
   { v:"2026.10.06l", title:"Guide now explains the statuses", items:[
     "🏷️ <b>What the statuses mean</b> — the <b>❓ Help</b> guide now spells out <b>Watching</b>, <b>Caught up</b>, <b>Plan to watch</b>, <b>Finished</b> and <b>Dropped</b> (and what happens to an anime when you mark a season <b>Finished</b>).",
   ]},
@@ -1031,6 +1041,7 @@ let recs = [];           // recommendations (cloud only)
 let recMedia = null;     // the title currently being recommended (in the Recommend modal)
 const live = new Map();  // anilistId -> live airing data (anime, from AniList)
 const tlive = new Map(); // "tv:ID"/"movie:ID" -> live detail (shows, from TMDB)
+const asDub = new Map(); // anilistId -> AnimeSchedule dub info {dubbed,premier,dubTime,delayedUntil,epAired,total,status}
 let boardKind = (()=>{ try{ let k=localStorage.getItem("watchlog:boardKind")||"anime"; if(k==="shows") k="show"; return k; }catch(e){ return "anime"; } })();  // "anime" | "show" (TV) | "movie"
 // Per-device preference: boards (tabs) this person has chosen to hide.
 let hiddenBoards = (()=>{ try{ return new Set(JSON.parse(localStorage.getItem("watchlog:hiddenBoards")||"[]")); }catch(e){ return new Set(); } })();
@@ -1231,9 +1242,26 @@ function groupDub(aniId){
   let mx=0; watchersOf(aniId).forEach(s=>{ const v=Number(s.dub_ep)||0; if(v>mx) mx=v; });
   return mx>0 ? {ep:mx} : null;
 }
-// Best dub-episode signal: the community value first, else AniList auto-detection.
+// AnimeSchedule-sourced dub info for an anime (populated by refreshDubSchedules via the
+// optional Worker). Returns {weekday, time, latestEp, premiere, total, delayed} or null.
+// latestEp is 0 when a dub is announced but hasn't started yet.
+function asDubInfo(aniId){
+  const d=asDub.get(Number(aniId)); if(!d || !d.dubbed) return null;
+  const prem=parseDate(d.premier); if(!prem) return null;
+  const slot=parseDate(d.dubTime)||prem;                 // weekly dub slot → local weekday/time
+  const total=d.total||totalEps(aniId)||null;
+  const du=parseDate(d.delayedUntil);
+  let latestEp;
+  if(prem.getTime()>Date.now()) latestEp=0;              // announced, not started
+  else if(d.epAired>0) latestEp=d.epAired;               // editor-set exact count
+  else if(total) latestEp=Math.min(total, Math.floor((Date.now()-prem.getTime())/(7*864e5))+1);  // estimate only when bounded by a known season length
+  else latestEp=0;                                       // unbounded long-runner → give the dub day but don't guess an episode #
+  return { weekday:slot.getDay(), time:slot, latestEp, premiere:prem, total, delayed:!!(du&&du.getTime()>Date.now()) };
+}
+// Best dub-episode signal: community bump first, then AnimeSchedule, then AniList auto-detect.
 function dubLatest(aniId){
   const g=groupDub(aniId); if(g) return {ep:g.ep, src:"group"};
+  const as=asDubInfo(aniId); if(as && as.latestEp>0) return {ep:as.latestEp, src:"schedule"};
   const d=dubStatus(aniId); if(d) return {ep:d.latestEp, src:"auto"};
   return null;
 }
@@ -1281,9 +1309,15 @@ function dubSchedule(aniId){
   let bestEp=-1, lastDate=null;    // date tied to the highest dub_ep (the most recent drop)
   ws.forEach(s=>{ const dt=parseDate(s.dub_date); if(!dt) return; const ep=Number(s.dub_ep)||0;
     if(ep>bestEp){ bestEp=ep; lastDate=dt; } else if(ep===bestEp && (!lastDate||dt>lastDate)) lastDate=dt; });
-  const weekday = manualDay!=null ? manualDay : (lastDate? lastDate.getDay() : null);
-  if(weekday==null) return null;
-  return { weekday, next: nextDubDate(weekday,lastDate), source: manualDay!=null?"manual":"auto", lastDate };
+  // Weekday precedence: a hand-set day wins, then AnimeSchedule's dub day, then the day
+  // learned from when the counter was last bumped.
+  const as=asDubInfo(aniId);
+  let weekday, source, anchor;
+  if(manualDay!=null){ weekday=manualDay; source="manual"; anchor=lastDate||(as?as.premiere:null); }
+  else if(as){ weekday=as.weekday; source="schedule"; anchor=as.premiere; }
+  else if(lastDate){ weekday=lastDate.getDay(); source="auto"; anchor=lastDate; }
+  else return null;
+  return { weekday, next: nextDubDate(weekday,anchor), source, lastDate: anchor };
 }
 // Friendly countdown text for a predicted dub date: {day:"Sat", txt:"3d 4h"|"today"}.
 function dubCdText(ds){
@@ -1822,7 +1856,7 @@ function showCard(s){
   if(slot.kind==="dropped"){ cd=`<div class="countdown done">✖ Dropped</div>`; }
   else if(slot.kind==="dub"){ const dl=dubLatest(s.anilistId), ds=slot.ds, c=dubCdText(ds);
     const epTxt = dl?`Dub Ep ${dl.ep+1}`:"Next dub";
-    cd=`<div class="countdown dubcd">🎙️ ${epTxt} expected ${c.day}${c.txt==="today"?" — today":" · "+c.txt}${ds.source==="auto"?" <span class='est'>est.</span>":""}</div>`; }
+    cd=`<div class="countdown dubcd">🎙️ ${epTxt} expected ${c.day}${c.txt==="today"?" — today":" · "+c.txt}${ds.source==="auto"?" <span class='est' title='learned from the group&#39;s last bump'>est.</span>":ds.source==="schedule"?" <span class='est' title='from AnimeSchedule'>est.</span>":""}</div>`; }
   else if(a.cd==="upcoming" && delayed){
     cd=`<div class="countdown warn">⚠️ Delayed this week — new time TBD</div>`; }
   else if(a.cd==="upcoming" && a.at>now){ const f=fmtCountdown(a.at); const p=Math.max(4,Math.min(100,(1-(a.at-now)/(7*864e5))*100));
@@ -1839,7 +1873,7 @@ function showCard(s){
   else cd=`<div class="countdown done"><span class="spinner" style="width:12px;height:12px;border-width:2px"></span> loading…</div>`;
 
   const dub=dubLatest(s.anilistId);
-  const dubTag = dub ? `<span class="tag dubtag" title="Latest English dub episode out${dub.src==="group"?" (shared by your group)":" (from AniList)"}">🎙️ Dub · Ep ${dub.ep} out</span>` : "";
+  const dubTag = dub ? `<span class="tag dubtag" title="Latest English dub episode out${dub.src==="group"?" (shared by your group)":dub.src==="schedule"?" (estimated from AnimeSchedule)":" (from AniList)"}">🎙️ Dub · Ep ${dub.ep} out</span>` : "";
   // When a show is placed on its dub day, suppress the sub air day/time so the card isn't self-contradictory.
   const dayTag = (slot.kind!=="dub" && a.dayName) ? `<span class="tag day">📆 ${a.dayName}</span>` : "";
   const timeTag = (slot.kind!=="dub" && a.time) ? `<span class="tag time" title="Shown in your local timezone (${esc(TZ_NAME)}). Converted from UTC.">🕒 ${a.time}${TZ_ABBR?" "+TZ_ABBR:""}</span>` : "";
@@ -1938,7 +1972,7 @@ function weekCard(s){
   let cd="";
   if(slot.kind==="dropped") cd=`<span class="wk-cd done">✖ dropped</span>`;
   else if(slot.kind==="dub"){ const c=dubCdText(slot.ds);
-    cd=`<span class="wk-cd dubcd">🎙️ ${c.txt==="today"?"today":c.txt}${slot.ds.source==="auto"?" <span class='est'>est</span>":""}</span>`; }
+    cd=`<span class="wk-cd dubcd">🎙️ ${c.txt==="today"?"today":c.txt}${(slot.ds.source==="auto"||slot.ds.source==="schedule")?" <span class='est'>est</span>":""}</span>`; }
   else if(delayed) cd=`<span class="wk-cd warn">⚠️ Delayed</span>`;
   else if(a.cd==="upcoming" && a.at>now){ const f=fmtCountdown(a.at); cd=`<span class="wk-cd ${f.soon?"soon":""}">⏳ ${f.txt}</span>`; }
   else if(a.cd==="upcoming" && now-a.at<90*60000) cd=`<span class="wk-cd soon">🟢 out now</span>`;
@@ -2190,7 +2224,32 @@ async function refreshLive(quiet){
     buildFranchise();      // recompute series clusters from the freshest relations
     render();
     scanNewSeasons().then(()=>{ if(boardKind==="anime") render(); });   // find sequels not on your list
+    refreshDubSchedules();  // auto-fill dub dates from AnimeSchedule (if a Worker is configured)
   }catch(e){ console.warn("live refresh failed",e); if(!quiet) toast("Couldn't reach AniList — check connection"); }
+}
+// Pull English-dub release info from AnimeSchedule (via your Worker) for the anime you
+// track, keyed by AniList ID. Optional: does nothing unless CONFIG.ANIMESCHEDULE.worker
+// is set. Cached server-side, so this is cheap to call on each refresh.
+let asDubFetching=false;
+async function refreshDubSchedules(){
+  const base=(CONFIG.ANIMESCHEDULE&&CONFIG.ANIMESCHEDULE.worker||"").replace(/\/+$/,"");
+  if(!base || asDubFetching) return;
+  const ids=[...new Set(shows.filter(s=>(s.kind||"anime")==="anime").map(s=>Number(s.anilistId)).filter(Boolean))];
+  if(!ids.length) return;
+  asDubFetching=true;
+  try{
+    // AniList IDs → dub info; chunk at 50 (Worker's per-request cap).
+    const chunks=[]; for(let i=0;i<ids.length;i+=50) chunks.push(ids.slice(i,i+50));
+    let changed=false;
+    for(const c of chunks){
+      const r=await fetch(`${base}/dubs?anilist=${c.join(",")}`);
+      if(!r.ok) continue;
+      const map=await r.json();
+      Object.keys(map||{}).forEach(k=>{ if(map[k]){ asDub.set(Number(k),map[k]); changed=true; } });
+    }
+    if(changed) render();
+  }catch(e){ console.warn("dub schedule fetch failed",e); }
+  finally{ asDubFetching=false; }
 }
 // Coalesce bursts of refreshes (e.g. bulk-adding) into a single AniList call.
 let refreshTimer=null;

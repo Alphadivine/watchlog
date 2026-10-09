@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10 — Auto dub dates from AnimeSchedule
+- **Dub release info fills in automatically** — WatchLog can pull English-dub data
+  (the weekly dub day, an estimated latest dub episode, and dub breaks) from
+  **AnimeSchedule.net**, matched to your list by AniList ID, so dubs no longer have to
+  be tracked entirely by hand. Marked **· AnimeSchedule** / *est.* so it's clearly an
+  estimate, and the manual **🎙️** counter always overrides it.
+- **Order of trust:** your group's 🎙️ bump (a human confirmed it) → AnimeSchedule
+  (dub premiere + weekly cadence, capped at the season's episode count; long-runners
+  with no episode total get the dub day but no guessed episode) → AniList auto-detect.
+- **Setup:** adds a small, dedicated **Cloudflare Worker** (free, no API token) that
+  relays AnimeSchedule with CORS — kept separate from the Party Up Worker. See
+  `Docs/Setup guide (AnimeSchedule dubs).md`, then paste the Worker URL into
+  `CONFIG.ANIMESCHEDULE.worker`. Blank = feature off, nothing changes.
+
 ## 2026-10 — Guide explains the statuses
 - **Status meanings in the Help guide** — the ❓ Help guide now spells out what each
   status does: **Watching** (keeping up), **Caught up** (seen everything out so far,
