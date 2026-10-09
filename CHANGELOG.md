@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10 — Built-in "How to use" guide
+- **❓ Help button** — a new **❓ Help** button in the top bar opens a short, friendly
+  tour of the essentials: the three boards, adding titles, statuses & Coming soon,
+  tracking season/episode and dub progress, recommendations, new-season alerts, and
+  profiles/viewing friends' lists.
+- **Auto-opens once for new users** — brand-new users see the guide automatically
+  right after they set up their profile (gated per-device so it never nags). Existing
+  users aren't interrupted; they'll see it noted in What's new and can open it from
+  the ❓ button any time.
+
 ## 2026-10 — Dialogs don't close when you select text
 - **Fixed a pop-up close bug** — while editing your profile (or in any dialog), if
   you dragged to highlight text in a field and released the mouse *outside* the box,

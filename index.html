@@ -213,6 +213,14 @@
   @keyframes pop{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
   .modal h3{margin:0;padding:18px 20px;border-bottom:1px solid var(--line);font-size:17px}
   .modal .content{padding:18px 20px}
+  /* How-to-use guide */
+  .guide-intro{color:var(--muted);font-size:14px;margin:0 0 14px}
+  .guide-step{display:flex;gap:12px;align-items:flex-start;padding:11px 12px;margin-bottom:9px;background:var(--card2);border:1px solid var(--line);border-radius:14px}
+  .guide-step .gi{font-size:22px;line-height:1.1;flex:0 0 auto;width:30px;text-align:center}
+  .guide-step .gt{font-size:14px;line-height:1.45}
+  .guide-step .gt b{color:var(--text)}
+  .guide-step .gt{color:var(--muted)}
+  .guide-tip{margin-top:4px;color:var(--faint);font-size:12.5px;text-align:center}
   .search-row{display:flex;gap:10px;margin-bottom:14px}
   input[type=text],textarea,input[type=number]{width:100%;background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:11px;padding:11px 13px;font-size:14px;font-family:inherit}
   input:focus,textarea:focus,select:focus{outline:2px solid var(--accent)}
@@ -519,6 +527,7 @@
     <button class="btn ghost sm" id="importBtn" title="Import your list from AniList or MyAnimeList">⬇️ Import</button>
     <button class="btn ghost sm" id="notifyBtn" title="Get notified before episodes air">🔔 Notify</button>
     <button class="btn ghost sm" id="pickBtn" title="Pick something from your Plan to watch">🎲 Pick for us</button>
+    <button class="btn ghost sm" id="helpBtn" title="How to use WatchLog">❓ Help</button>
     <button class="btn ghost sm" id="whatsNewBtn" title="What's new">✨</button>
     <button class="btn ghost sm" id="themeBtn" title="Toggle light / dark">☀️</button>
     <button class="btn ghost sm" id="refreshBtn" title="Refresh schedules from AniList">🔄 Refresh</button>
@@ -724,6 +733,25 @@
   </div>
 </div>
 
+<!-- How to use -->
+<div class="overlay" id="helpOverlay">
+  <div class="modal" style="max-width:500px">
+    <h3>👋 How to use WatchLog</h3>
+    <div class="content">
+      <p class="guide-intro">WatchLog keeps you and your friends on the same page for everything you're watching. Here's the quick tour:</p>
+      <div class="guide-step"><div class="gi">🎌</div><div class="gt"><b>Three boards.</b> Switch between <b>Anime</b>, <b>Shows</b> (TV) and <b>Movies</b> using the tabs up top. Don't use one? Hide it in your profile under <b>Boards to show</b>.</div></div>
+      <div class="guide-step"><div class="gi">➕</div><div class="gt"><b>Add a title.</b> Tap the <b>＋</b> button, search for anything, or hit <b>🔥 Trending</b> to browse what's hot. Pick it and it lands on your list.</div></div>
+      <div class="guide-step"><div class="gi">🏷️</div><div class="gt"><b>Set a status.</b> Mark each title <b>Watching</b>, <b>Plan to watch</b> or <b>Finished</b>. Titles that haven't aired yet wait in <b>Coming soon</b> until release day.</div></div>
+      <div class="guide-step"><div class="gi">📺</div><div class="gt"><b>Track your progress.</b> Use the season/episode steppers on a card to log where you are, and the 🎙️ counter for dub episodes. Everyone sees it update live.</div></div>
+      <div class="guide-step"><div class="gi">💌</div><div class="gt"><b>Recommend to friends.</b> Tap the <b>💌</b> on any card to suggest it to one person or everyone, with an optional note. They get it in a <b>📬 Recommended to you</b> section.</div></div>
+      <div class="guide-step"><div class="gi">🆕</div><div class="gt"><b>Never miss a new season.</b> WatchLog flags new seasons of anime you track and shows you finished, right at the top of the board.</div></div>
+      <div class="guide-step"><div class="gi">👤</div><div class="gt"><b>Your profile & friends.</b> Tap your name to set your avatar, colour and boards. Tap a friend's chip to view <i>their</i> list (read-only) — switch back to yours to make changes.</div></div>
+      <p class="guide-tip">Tip: tap <b>✨</b> any time to see what's new, or <b>❓ Help</b> to reopen this guide.</p>
+    </div>
+    <div class="modal-foot"><button class="btn" id="helpClose" style="margin-left:auto">Got it 🎉</button></div>
+  </div>
+</div>
+
 <!-- Recommend modal -->
 <div class="overlay" id="recOverlay">
   <div class="modal" style="max-width:420px">
@@ -781,8 +809,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06j";
+const APP_VERSION = "2026.10.06k";
 const WHATS_NEW = [
+  { v:"2026.10.06k", title:"New: a built-in how-to guide", items:[
+    "❓ <b>How to use WatchLog</b> — tap the new <b>❓ Help</b> button in the top bar any time for a quick tour of the essentials (boards, adding titles, statuses, progress, recommendations, profiles). It also pops up once for brand-new users right after they set up their profile.",
+  ]},
   { v:"2026.10.06j", title:"Dialogs don't close when you select text", items:[
     "🖱️ <b>Fixed:</b> while editing your profile (or any pop-up), if you dragged to highlight text in a field and let go <i>outside</i> the box, the dialog would close and lose your edits. Now a pop-up only closes when you actually click its dark backdrop — a text selection that drifts out is safe.",
   ]},
@@ -2773,6 +2804,18 @@ function maybeShowWhatsNew(){
 $("#whatsNewBtn").onclick=openWhatsNew;
 $("#whatsNewClose").onclick=()=>$("#whatsNewOverlay").classList.remove("show");
 backdropClose($("#whatsNewOverlay"), ()=>$("#whatsNewOverlay").classList.remove("show"));
+// How-to-use guide — opens on demand (❓ Help) and once for brand-new users.
+let pendingGuide=false;
+function openHelp(){ $("#helpOverlay").classList.add("show"); try{ localStorage.setItem("watchlog:guideSeen","1"); }catch(e){} }
+function maybeAutoGuide(){
+  let seen=null; try{ seen=localStorage.getItem("watchlog:guideSeen"); }catch(e){}
+  if(seen) return;                                   // already shown once on this device
+  if(document.querySelector(".overlay.show")) return; // don't stack on another dialog
+  openHelp();
+}
+$("#helpBtn").onclick=openHelp;
+$("#helpClose").onclick=()=>$("#helpOverlay").classList.remove("show");
+backdropClose($("#helpOverlay"), ()=>$("#helpOverlay").classList.remove("show"));
 $("#importSrc").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; importSrc=b.dataset.src; syncImportSeg(); $("#importStatus").textContent=""; });
 $("#importGo").onclick=doImport;
 $("#importUser").addEventListener("keydown",e=>{ if(e.key==="Enter") doImport(); });
@@ -3142,6 +3185,7 @@ async function saveProfile(){
     $("#profileOverlay").classList.remove("show");
     render();
     toast("Profile saved");
+    if(pendingGuide){ pendingGuide=false; maybeAutoGuide(); }   // welcome new users right after setup
   }catch(e){ toast("Save failed: "+e.message); }
 }
 $("#saveProfile").onclick=saveProfile;
@@ -3175,7 +3219,7 @@ function initSyncUI(){
       if(newUid===myUid) return;      // no change
       myUid=newUid; myProfile=null; viewingUid=null;
       await reload();
-      if(myUid && !myProfile) openProfile();   // needs first-time profile setup
+      if(myUid && !myProfile){ pendingGuide=true; openProfile(); }   // needs first-time profile setup
     });
   } else if(localProfile){
     viewingUid="me";
@@ -3186,8 +3230,8 @@ function initSyncUI(){
   initSyncUI();
   $("#viewRoot").innerHTML=skeletonHTML();
   await reload();
-  if(usingCloud && myUid && !myProfile) openProfile();   // logged in, no profile yet
-  if(!usingCloud && !localProfile) openProfile();          // local first run
+  if(usingCloud && myUid && !myProfile){ pendingGuide=true; openProfile(); }   // logged in, no profile yet
+  if(!usingCloud && !localProfile){ pendingGuide=true; openProfile(); }          // local first run
   // periodic countdown tick + auto-resync on elapsed + hourly refresh + notifications
   setInterval(()=>{ if(currentView) render(); maybeAutoRefresh(); checkNotifications(); }, 60000);
   setInterval(()=>{ refreshLive(true); refreshTmdb(true); }, 60*60*1000);
