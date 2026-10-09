@@ -781,8 +781,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06i";
+const APP_VERSION = "2026.10.06j";
 const WHATS_NEW = [
+  { v:"2026.10.06j", title:"Dialogs don't close when you select text", items:[
+    "🖱️ <b>Fixed:</b> while editing your profile (or any pop-up), if you dragged to highlight text in a field and let go <i>outside</i> the box, the dialog would close and lose your edits. Now a pop-up only closes when you actually click its dark backdrop — a text selection that drifts out is safe.",
+  ]},
   { v:"2026.10.06i", title:"Hide boards you don't use", items:[
     "🙈 <b>Choose your boards</b> — in your profile, under <b>Boards to show</b>, untick 🎌 Anime, 🍿 Shows or 🎬 Movies to hide the tabs you don't care about. It's per person, so a movies-only friend can hide anime entirely. (If you hide all but one, the toggle just disappears.)",
   ]},
@@ -2360,7 +2363,7 @@ async function dismissRec(id){
 }
 $("#recCancel").onclick=()=>$("#recOverlay").classList.remove("show");
 $("#recSend").onclick=recSend;
-$("#recOverlay").addEventListener("click",e=>{ if(e.target===$("#recOverlay")) $("#recOverlay").classList.remove("show"); });
+backdropClose($("#recOverlay"), ()=>$("#recOverlay").classList.remove("show"));
 // Recommend from the detail/preview modal (covers search results, not just tracked titles).
 $("#recBtn").onclick=()=>{
   let p=null;
@@ -2769,7 +2772,7 @@ function maybeShowWhatsNew(){
 }
 $("#whatsNewBtn").onclick=openWhatsNew;
 $("#whatsNewClose").onclick=()=>$("#whatsNewOverlay").classList.remove("show");
-$("#whatsNewOverlay").addEventListener("click",e=>{ if(e.target===$("#whatsNewOverlay")) $("#whatsNewOverlay").classList.remove("show"); });
+backdropClose($("#whatsNewOverlay"), ()=>$("#whatsNewOverlay").classList.remove("show"));
 $("#importSrc").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; importSrc=b.dataset.src; syncImportSeg(); $("#importStatus").textContent=""; });
 $("#importGo").onclick=doImport;
 $("#importUser").addEventListener("keydown",e=>{ if(e.key==="Enter") doImport(); });
@@ -2878,11 +2881,17 @@ document.addEventListener("click",e=>{
 // Close on backdrop click only when the press STARTED on the backdrop — so a drag
 // or a reflow (e.g. a result card shrinking after you add it) can't close the popup.
 function closeOverlay(o){ o.classList.remove("show"); if(pendingView) render(); }
-[$("#addOverlay"),$("#editOverlay")].forEach(o=>{
+// Drag-safe backdrop close: only fire when the press STARTED on the backdrop, so
+// selecting text in a field and releasing the mouse outside the dialog — or a
+// reflow under the cursor — can't dismiss it. `close` lets a dialog run its own
+// teardown (e.g. don't close the profile dialog until a profile exists).
+function backdropClose(o, close){
+  if(!o) return;
   let downOnBackdrop=false;
   o.addEventListener("mousedown",e=>{ downOnBackdrop=(e.target===o); });
-  o.addEventListener("click",e=>{ if(e.target===o && downOnBackdrop) closeOverlay(o); });
-});
+  o.addEventListener("click",e=>{ if(e.target===o && downOnBackdrop) (close||(()=>closeOverlay(o)))(); });
+}
+[$("#addOverlay"),$("#editOverlay")].forEach(o=>backdropClose(o));
 // profile switching
 $("#profilesBar").addEventListener("click",e=>{
   const chip=e.target.closest(".profchip"); if(!chip) return;
@@ -2933,7 +2942,7 @@ async function submitAuth(){
 $("#authSubmit").onclick=submitAuth;
 $("#authPw").addEventListener("keydown",e=>{ if(e.key==="Enter") submitAuth(); });
 $("#loginBtn").onclick=openAuth;
-$("#authOverlay").addEventListener("click",e=>{ if(e.target===$("#authOverlay")) $("#authOverlay").classList.remove("show"); });
+backdropClose($("#authOverlay"), ()=>$("#authOverlay").classList.remove("show"));
 
 /* ----- Profile modal ----- */
 let pickAvatar="🐱", pickColor="#8b6cff";
@@ -3140,7 +3149,7 @@ $("#logoutBtn").onclick=async()=>{ $("#profileOverlay").classList.remove("show")
 $("#exportBtn").onclick=doExport;
 $("#changePwBtn").onclick=changePassword;
 $("#newPw").addEventListener("keydown",e=>{ if(e.key==="Enter") changePassword(); });
-$("#profileOverlay").addEventListener("click",e=>{ if(e.target===$("#profileOverlay") && loggedIn()) $("#profileOverlay").classList.remove("show"); });
+backdropClose($("#profileOverlay"), ()=>{ if(loggedIn()) $("#profileOverlay").classList.remove("show"); });
 
 /* ---------------- Init ---------------- */
 function initSyncUI(){

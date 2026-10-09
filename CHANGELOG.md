@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10 — Dialogs don't close when you select text
+- **Fixed a pop-up close bug** — while editing your profile (or in any dialog), if
+  you dragged to highlight text in a field and released the mouse *outside* the box,
+  the dialog would close and discard your edits. Pop-ups now close only on a true
+  backdrop click (press **and** release on the dark area); a text selection that
+  drifts onto the backdrop no longer dismisses them. Applies to the profile, add,
+  edit, recommend, sign-in and what's-new dialogs.
+- **Profile avatars already sync live** — note for the "friend sees my old avatar
+  (panda) instead of Naruto" report: profiles update live across viewers, so this
+  was a stale cached page on the other device. A hard refresh (and running this
+  build) shows everyone's current avatar.
+
 ## 2026-10 — Hide boards you don't use
 - **Choose your boards** — in your profile, under **Boards to show**, you can hide
   🎌 Anime, 🍿 Shows and/or 🎬 Movies tabs you don't care about. It's a per-person
