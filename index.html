@@ -468,6 +468,17 @@
   .wn-older{margin-top:4px}
   .wn-older>summary{cursor:pointer;color:var(--faint);font-size:13px;padding:6px 0;list-style:none}
   .wn-older>summary:hover{color:var(--text)}
+  /* ---------- Today home screen ---------- */
+  .homenav{display:flex;gap:8px;justify-content:center;margin:2px 0 16px;flex-wrap:wrap}
+  .homenav button{background:var(--card);border:1px solid var(--line);color:var(--muted);padding:9px 22px;font-weight:800;font-size:15px;border-radius:13px;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:color .2s,border-color .2s,transform .12s}
+  .homenav button:hover{color:var(--text);border-color:rgba(139,108,255,.5)}
+  .homenav button.active{background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border-color:transparent;box-shadow:0 6px 18px rgba(90,63,240,.4)}
+  #todayRoot{display:none}
+  body.mode-today #todayRoot{display:block;animation:cardIn .4s ease both}
+  body.mode-today .boardseg-wrap,body.mode-today .controls,body.mode-today #tzNote,body.mode-today #heroRoot,body.mode-today #viewRoot{display:none!important}
+  .today-greet{font-size:24px;font-weight:900;margin:2px 0 10px;background:linear-gradient(90deg,#fff,var(--accent2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .today-sec{margin-bottom:8px}
+  .today-sec .sec-h{margin:18px 0 12px}
 </style>
 </head>
 <body>
@@ -489,6 +500,10 @@
 </header>
 
 <main>
+  <div class="homenav" id="homeNav">
+    <button data-home="today" class="active">⚡ Today</button>
+    <button data-home="mylist">📺 My List</button>
+  </div>
   <div id="profilesBar" class="profiles"></div>
   <div class="boardseg-wrap">
     <div class="seg boardseg" id="boardSeg">
@@ -536,6 +551,7 @@
   <div id="roBanner" style="display:none">👁 You're viewing <b id="roName">someone</b>'s list — read-only. Switch back to <b>your</b> profile to make changes.</div>
   <div id="heroRoot"></div>
   <div id="viewRoot"></div>
+  <div id="todayRoot"></div>
 </main>
 
 <button class="btn fab" id="fabAdd" style="display:none">＋</button>
@@ -815,8 +831,13 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.06m";
+const APP_VERSION = "2026.10.10a";
 const WHATS_NEW = [
+  { v:"2026.10.10a", title:"New: a ⚡ Today home screen", items:[
+    "⚡ <b>Today</b> — WatchLog now opens on a single at-a-glance landing view that spans <b>all three boards</b>. A <b>⚡ Today / 📺 My List</b> toggle up top switches between it and the full board you already know.",
+    "📅 <b>Dropping today</b> shows only what actually airs on today's date (sub or dub); if nothing's due, it shows <b>⏳ Up next</b> — your soonest airing. <b>▶ Continue watching</b> gathers everything you're in the middle of, and <b>🎙️ Dub watch</b> lists your next English dubs. Any recommendations or new seasons waiting for you show here too.",
+    "Every card taps straight through to its details, exactly like the weekly view. Switch to <b>📺 My List</b> any time for the per-board Weekly / List / Posters views, filters and sorting — nothing there changed.",
+  ]},
   { v:"2026.10.06m", title:"Auto dub dates (AnimeSchedule)", items:[
     "🎙️ <b>Dub dates fill in automatically</b> — WatchLog can now pull English-dub release info (the weekly dub day + an estimated latest dub episode) from <b>AnimeSchedule</b>, so you don't have to track every dub by hand. It's marked <b>· AnimeSchedule</b> / <i>est.</i> to set it apart, and your manual <b>🎙️</b> counter always wins.",
     "<i>One-time setup:</i> this needs a small Cloudflare Worker (free, no token) — see <b>Docs/Setup guide (AnimeSchedule dubs).md</b>. Until it's set up, nothing changes and the manual counter works as before.",
@@ -2173,6 +2194,45 @@ function restoreViewState(st){
   }catch(e){}
   if(st.y) try{ window.scrollTo(0, st.y); }catch(e){}
 }
+/* ---------------- Today home screen ----------------
+   A single at-a-glance landing view that spans ALL boards: what drops today,
+   what you're in the middle of, and the next dubs. Reuses weekCard() so cards
+   look and behave (tap → details) exactly like the weekly view. Toggled with
+   the ⚡ Today / 📺 My List nav; render() branches to it when homeMode==="today". */
+window.homeMode = "today";
+window.renderToday = function(){
+  const root=$("#todayRoot"); if(!root) return;
+  const mine=(typeof ownerShows==="function"?ownerShows():[]);
+  if(!mine.length){ root.innerHTML=`<div class="empty-state"><div class="big">⚡</div><h2 style="margin:0 0 6px">Nothing tracked yet</h2><p>Switch to <b>📺 My List</b> and add something to see your day here.</p></div>`; return; }
+  const ws=s=>{ try{ return weekSlot(s)||{}; }catch(e){ return {}; } };
+  const card=s=>{ try{ return weekCard(s); }catch(e){ return ""; } };
+  const now=Date.now();
+  const withSlot=mine.map(s=>({s,slot:ws(s)}));
+  // Dropping TODAY: an actual air moment landing on today's calendar date (not merely
+  // "airs on this weekday" — that wrongly caught shows that already aired earlier this week).
+  const dueToday=withSlot.filter(x=>(x.slot.kind==="sub"||x.slot.kind==="dub") && x.slot.at && isSameLocalDay(x.slot.at))
+    .sort((a,b)=>(a.slot.at||0)-(b.slot.at||0)).map(x=>x.s);
+  const upcoming=withSlot.filter(x=>(x.slot.kind==="sub"||x.slot.kind==="dub") && x.slot.at && x.slot.at>now)
+    .sort((a,b)=>a.slot.at-b.slot.at).map(x=>x.s);
+  const watching=mine.filter(s=>s.status==="Watching");
+  const dubWatch=mine.filter(s=>(s.kind||"anime")==="anime" && ["dub","dubTBD"].includes(ws(s).kind));
+  const sec=(title,note,arr)=>`<div class="today-sec"><h3 class="sec-h">${title} ${note?`<span class="sec-note">${note}</span>`:""}</h3><div class="week-loose">${arr.map(card).join("")}</div></div>`;
+  const who=(window.viewingUid && typeof meId==="function" && viewingUid!==meId()) ? (esc(displayName(viewingUid))+"'s ") : "Your ";
+  let html=`<h2 class="today-greet">⚡ ${who}day</h2>`;
+  if(dueToday.length) html+=sec("📅 Dropping today","across all your boards",dueToday);
+  else if(upcoming.length) html+=sec("⏳ Up next","soonest to air",[upcoming[0]]);
+  if(watching.length) html+=sec("▶ Continue watching","in the middle of",watching.slice(0,16));
+  if(dubWatch.length) html+=sec("🎙️ Dub watch","next English dubs",dubWatch.slice(0,16));
+  try{ const r=recsCalloutHTML && recsCalloutHTML(); if(r) html+=`<div class="today-sec">${r}</div>`; }catch(e){}
+  try{ const n=newSeasonsCalloutHTML && newSeasonsCalloutHTML(); if(n) html+=`<div class="today-sec">${n}</div>`; }catch(e){}
+  root.innerHTML=html;
+};
+function setHomeMode(m){
+  window.homeMode=m;
+  document.body.classList.toggle("mode-today", m==="today");
+  const nav=$("#homeNav"); if(nav) [...nav.children].forEach(b=>b.classList.toggle("active", b.dataset.home===m));
+  render();
+}
 function render(){
   const ro=isReadOnly();
   const canEdit=loggedIn() && !ro;
@@ -2187,6 +2247,7 @@ function render(){
   // it closes (flushed by closeOverlay and the 1.2s safety interval).
   if(document.querySelector(".overlay.show")){ pendingView=true; return; }
   pendingView=false;
+  if(window.homeMode==="today"){ renderToday(); return; }   // landing view spans all boards
   const st=captureViewState();
   const mine=ownerShows();
   const hero=$("#heroRoot"); if(hero) hero.innerHTML = mine.length ? heroHTML() : "";
@@ -3004,6 +3065,8 @@ $("#profilesBar").addEventListener("click",e=>{
   const lf=$("#listFilter"); if(lf) lf.value=""; const sf=$("#statusFilter"); if(sf) sf.value="all";
   render();
 });
+// ⚡ Today / 📺 My List landing toggle
+$("#homeNav").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; setHomeMode(b.dataset.home); });
 document.addEventListener("click",e=>{ if(e.target.closest("#emptyLoginBtn")) openAuth(); });
 
 /* ----- Auth modal ----- */
@@ -3290,6 +3353,7 @@ function initSyncUI(){
   $("#genreSel").innerHTML='<option value="">🎭 All genres</option>'+GENRES.map(g=>`<option value="${g}">${g}</option>`).join("");
   applyBoardUI();
   initSyncUI();
+  window.homeMode="today"; document.body.classList.add("mode-today");   // open on the Today landing view (nav defaults to Today)
   $("#viewRoot").innerHTML=skeletonHTML();
   await reload();
   if(usingCloud && myUid && !myProfile){ pendingGuide=true; openProfile(); }   // logged in, no profile yet
