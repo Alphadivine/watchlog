@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10 — ⚡ Today home screen (redesign increment 1)
+- **New landing view** — WatchLog now opens on a **⚡ Today** screen that spans all
+  three boards at once, instead of dropping you straight onto a single board. A
+  **⚡ Today / 📺 My List** toggle at the top of `<main>` switches between it and the
+  existing per-board views; My List is unchanged (Weekly / List / Posters, filters,
+  sorting, Finished/Dropped, etc.).
+- **Sections:** **📅 Dropping today** (only titles whose actual sub/dub air moment
+  lands on today's calendar date — not merely "airs on this weekday", which previously
+  mis-listed shows already aired earlier in the week); falls back to **⏳ Up next**
+  (soonest airing) when nothing is due. Then **▶ Continue watching** (status =
+  Watching, up to 16) and **🎙️ Dub watch** (anime with a dub still releasing).
+  Recommendations and new-season callouts surface here too.
+- **Implementation:** reuses `weekCard()` so cards look and behave identically (tap →
+  details) to the weekly view. `render()` branches to `renderToday()` when
+  `window.homeMode === "today"`; the profiles bar stays visible so you can view a crew
+  member's Today. Verified live against real data (toggle both ways, card → detail,
+  the Dropping-today date filter).
+
 ## 2026-10 — Auto dub dates from AnimeSchedule
 - **Dub release info fills in automatically** — WatchLog can pull English-dub data
   (the weekly dub day, an estimated latest dub episode, and dub breaks) from
