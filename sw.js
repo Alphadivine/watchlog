@@ -1,5 +1,5 @@
 /* WatchLog service worker — offline app shell. Bump CACHE to force an update. */
-const CACHE = "watchlog-v3";
+const CACHE = "watchlog-v4";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e=>{

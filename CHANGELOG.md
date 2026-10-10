@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10 — 🧭 Discover & 👥 Crew (redesign increment 2)
+- **Discover tab** — `renderDiscover()` on `#discoverRoot`. Shows **🔥 Trending anime**
+  (live AniList `TRENDING_Q`, deduped against your list with ✓/＋ badges), **🆕 new seasons**
+  of anime you track (reuses `newSeasonsList`/`seqCardHTML`), and **"Because your crew likes
+  these"** — titles a crew member tracks that you don't, ranked by how many of the crew track
+  them (`discCrewLikes()` via `showIdent`). Plus Search & add and 🎲 Pick-for-us shortcuts.
+- **Crew tab** — `renderCrew()` on `#crewRoot`. One card per other member with a **real
+  taste-match %** = Jaccard overlap of tracked `showIdent` sets (`tasteMatch()`/`jac()`), plus
+  per-board alignment bars (Anime/Shows/Movies, `identSet(uid,board)`), and a **"what the crew
+  is on right now"** rail of their Watching titles (`weekCard`). Tapping a card sets
+  `viewingUid` and jumps to My List (read-only), same path as the profile chips.
+- **4-way nav** — `#homeNav` is now ⚡ Today · 📺 My List · 🧭 Discover · 👥 Crew. `render()`
+  branches on `window.homeMode`; CSS `body.mode-discover`/`mode-crew` hide the board chrome and
+  show the matching root. App version → `2026.10.10b`, sw cache → `v4`.
+- Verified live against real shared data (Demon 20% / Matt 4% taste match, trending badges,
+  crew-likes, tap-through to a member's list).
+
 ## 2026-10 — ⚡ Today home screen (redesign increment 1)
 - **New landing view** — WatchLog now opens on a **⚡ Today** screen that spans all
   three boards at once, instead of dropping you straight onto a single board. A

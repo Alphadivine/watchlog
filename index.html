@@ -473,9 +473,31 @@
   .homenav button{background:var(--card);border:1px solid var(--line);color:var(--muted);padding:9px 22px;font-weight:800;font-size:15px;border-radius:13px;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:color .2s,border-color .2s,transform .12s}
   .homenav button:hover{color:var(--text);border-color:rgba(139,108,255,.5)}
   .homenav button.active{background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border-color:transparent;box-shadow:0 6px 18px rgba(90,63,240,.4)}
-  #todayRoot{display:none}
-  body.mode-today #todayRoot{display:block;animation:cardIn .4s ease both}
-  body.mode-today .boardseg-wrap,body.mode-today .controls,body.mode-today #tzNote,body.mode-today #heroRoot,body.mode-today #viewRoot{display:none!important}
+  #todayRoot,#discoverRoot,#crewRoot{display:none}
+  body.mode-today #todayRoot,body.mode-discover #discoverRoot,body.mode-crew #crewRoot{display:block;animation:cardIn .4s ease both}
+  body.mode-today .boardseg-wrap,body.mode-today .controls,body.mode-today #tzNote,body.mode-today #heroRoot,body.mode-today #viewRoot,
+  body.mode-discover .boardseg-wrap,body.mode-discover .controls,body.mode-discover #tzNote,body.mode-discover #heroRoot,body.mode-discover #viewRoot,
+  body.mode-crew .boardseg-wrap,body.mode-crew .controls,body.mode-crew #tzNote,body.mode-crew #heroRoot,body.mode-crew #viewRoot{display:none!important}
+  /* Discover */
+  .disc-actions{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 6px}
+  /* Crew */
+  .crewcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .14s,border-color .2s,box-shadow .2s}
+  .crewcard:hover{transform:translateY(-2px);border-color:rgba(139,108,255,.5);box-shadow:0 10px 28px rgba(0,0,0,.35)}
+  .crew-hd{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .crew-hd .pav{width:44px;height:44px;font-size:19px}
+  .crew-nm{display:flex;flex-direction:column;flex:1;min-width:0}
+  .crew-nm b{font-size:16px;font-weight:800}
+  .crew-sub{font-size:12px;color:var(--faint)}
+  .crew-match{text-align:center;flex:0 0 auto;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:6px 12px}
+  .crew-match .cmv{font-size:19px;font-weight:900;background:linear-gradient(90deg,var(--accent2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .crew-match .cml{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.4px}
+  .crew-bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:12px}
+  .crew-bar .cbl{width:54px;color:var(--muted);font-weight:700;flex:0 0 auto}
+  .crew-bar .cbar{flex:1;height:8px;border-radius:999px;background:rgba(140,140,220,.15);overflow:hidden}
+  .crew-bar .cbar i{display:block;height:100%;border-radius:999px}
+  .crew-bar .cbv{width:38px;text-align:right;color:var(--muted);font-weight:700;flex:0 0 auto}
+  .crew-cta{margin-top:10px;font-size:12px;color:var(--accent2);font-weight:700}
+  .label-row{font-size:13px;color:var(--faint);font-weight:700;margin:4px 2px 10px;text-transform:uppercase;letter-spacing:.4px}
   .today-greet{font-size:24px;font-weight:900;margin:2px 0 10px;background:linear-gradient(90deg,#fff,var(--accent2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
   .today-sec{margin-bottom:8px}
   .today-sec .sec-h{margin:18px 0 12px}
@@ -503,6 +525,8 @@
   <div class="homenav" id="homeNav">
     <button data-home="today" class="active">⚡ Today</button>
     <button data-home="mylist">📺 My List</button>
+    <button data-home="discover">🧭 Discover</button>
+    <button data-home="crew">👥 Crew</button>
   </div>
   <div id="profilesBar" class="profiles"></div>
   <div class="boardseg-wrap">
@@ -552,6 +576,8 @@
   <div id="heroRoot"></div>
   <div id="viewRoot"></div>
   <div id="todayRoot"></div>
+  <div id="discoverRoot"></div>
+  <div id="crewRoot"></div>
 </main>
 
 <button class="btn fab" id="fabAdd" style="display:none">＋</button>
@@ -831,8 +857,13 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.10a";
+const APP_VERSION = "2026.10.10b";
 const WHATS_NEW = [
+  { v:"2026.10.10b", title:"New: 🧭 Discover &amp; 👥 Crew", items:[
+    "🧭 <b>Discover</b> — a new tab with <b>🔥 Trending anime</b>, <b>🆕 new seasons</b> of shows you watch, and a <b>“Because your crew likes these”</b> row of titles Demon &amp; Matt track that you don't yet. Add any of them in one tap.",
+    "👥 <b>Crew</b> — see each crew member with a real <b>taste-match %</b> (how much of your lists overlap) and per-board bars for Anime / Shows / Movies, plus <b>what everyone's watching right now</b>. Tap a member to jump into their list.",
+    "🧭 The top nav is now <b>⚡ Today · 📺 My List · 🧭 Discover · 👥 Crew</b>.",
+  ]},
   { v:"2026.10.10a", title:"New: a ⚡ Today home screen", items:[
     "⚡ <b>Today</b> — WatchLog now opens on a single at-a-glance landing view that spans <b>all three boards</b>. A <b>⚡ Today / 📺 My List</b> toggle up top switches between it and the full board you already know.",
     "📅 <b>Dropping today</b> shows only what actually airs on today's date (sub or dub); if nothing's due, it shows <b>⏳ Up next</b> — your soonest airing. <b>▶ Continue watching</b> gathers everything you're in the middle of, and <b>🎙️ Dub watch</b> lists your next English dubs. Any recommendations or new seasons waiting for you show here too.",
@@ -2227,9 +2258,116 @@ window.renderToday = function(){
   try{ const n=newSeasonsCalloutHTML && newSeasonsCalloutHTML(); if(n) html+=`<div class="today-sec">${n}</div>`; }catch(e){}
   root.innerHTML=html;
 };
+/* ---------------- Discover + Crew (redesign increment 2) ----------------
+   Two more landing screens reached from the ⚡/📺/🧭/👥 nav. Discover surfaces
+   trending titles, new seasons of your anime, and what your crew likes that you
+   don't track yet. Crew shows each member with a real taste-match % (Jaccard
+   overlap of tracked titles) and per-board alignment bars. Both reuse the live
+   app's cards and data (Firebase lists, AniList) — nothing mocked. */
+// Which board a show belongs to, as a plain key.
+function boardOfShow(s){ const k=s.kind||"anime"; if(k==="anime") return "anime"; return (s.mediaType||"tv")==="movie" ? "movie" : "show"; }
+// Set of a person's tracked title identities, optionally scoped to one board.
+function identSet(uid, bk){ return new Set(showsForUid(uid).filter(s=>!bk||boardOfShow(s)===bk).map(showIdent)); }
+// Jaccard overlap of two identity sets, as a 0–100 percentage.
+function jac(a,b){ if(!a.size && !b.size) return 0; let i=0; a.forEach(x=>{ if(b.has(x)) i++; }); const u=new Set([...a,...b]).size; return u ? Math.round(i/u*100) : 0; }
+function tasteMatch(uid){ return jac(identSet(meId()), identSet(uid)); }
+
+/* ---- Discover ---- */
+let discTrend=null, discTrendLoading=false;
+async function loadDiscTrending(){
+  if(discTrendLoading) return;
+  discTrendLoading=true;
+  try{ const d=await aniQuery(TRENDING_Q,{}); discTrend=(d.Page.media||[]).filter(m=>!m.isAdult).slice(0,14); }
+  catch(e){ discTrend=[]; }
+  discTrendLoading=false;
+  if(window.homeMode==="discover") renderDiscover();
+}
+function discPoster(m){
+  const t=m.title.english||m.title.romaji;
+  const have=showsForUid(meId()).some(x=>String(x.anilistId)===String(m.id));
+  const bg=(m.coverImage&&m.coverImage.medium)?`background-image:url('${esc(hiRes(m.coverImage.medium))}')`:"";
+  const payload={id:m.id,title:t,cover:(m.coverImage&&m.coverImage.medium)||"",site_url:m.siteUrl,status:m.status};
+  return `<button class="poster" data-act="discadd" data-m='${esc(JSON.stringify(payload))}' style="${bg}" title="${esc(t)}">
+    <span class="poster-grad"></span>
+    <span class="pcd ${have?"done":""}">${have?"✓ on list":"＋ add"}</span>
+    <span class="poster-meta"><span class="pt">${esc(t)}</span></span></button>`;
+}
+// Titles a crew member tracks that I don't — ordered by how many of the crew track them.
+function discCrewLikes(){
+  if(!loggedIn()) return [];
+  const me=meId();
+  const mine=new Set(showsForUid(me).map(showIdent));
+  const tally=new Map(), rep=new Map();
+  allOwnerIds().filter(u=>u!==me).forEach(u=>{
+    showsForUid(u).forEach(s=>{ const k=showIdent(s); if(mine.has(k)) return; tally.set(k,(tally.get(k)||0)+1); if(!rep.has(k)) rep.set(k,s); });
+  });
+  return [...tally.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k])=>rep.get(k));
+}
+window.renderDiscover=function(){
+  const root=$("#discoverRoot"); if(!root) return;
+  let html=`<h2 class="today-greet">🧭 Discover</h2>`;
+  html+=`<div class="disc-actions"><button class="btn ghost sm" id="discAdd">🔍 Search &amp; add</button><button class="btn ghost sm" id="discPick">🎲 Pick for us</button></div>`;
+  html+=`<div class="today-sec"><h3 class="sec-h">🔥 Trending anime this week</h3>`;
+  if(discTrend && discTrend.length) html+=`<div class="posterwall">${discTrend.map(discPoster).join("")}</div>`;
+  else html+=`<div class="hint" style="padding:8px 4px"><span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Loading trending…</div>`;
+  html+=`</div>`;
+  if(typeof newSeasonsList!=="undefined" && newSeasonsList && newSeasonsList.length){
+    html+=`<div class="today-sec"><h3 class="sec-h">🆕 New seasons of what you watch</h3><div class="grid-list">${newSeasonsList.map(seqCardHTML).join("")}</div></div>`;
+  }
+  const likes=discCrewLikes();
+  if(likes.length){
+    html+=`<div class="today-sec"><h3 class="sec-h">👥 Because your crew likes these <span class="sec-note">tracked by your crew, not on your list yet</span></h3><div class="grid-list">${likes.map(showCard).join("")}</div></div>`;
+  }
+  root.innerHTML=html;
+  const a=$("#discAdd"); if(a) a.onclick=()=>{ $("#addOverlay").classList.add("show"); const si=$("#searchInput"); if(si) si.focus(); };
+  const p=$("#discPick"); if(p) p.onclick=pickForUs;
+  if(!discTrend && !discTrendLoading) loadDiscTrending();
+};
+
+/* ---- Crew ---- */
+function crewCardHTML(u){
+  const me=meId();
+  const match=tasteMatch(u);
+  const total=identSet(u).size;
+  const bars=[["anime","Anime","var(--accent)"],["show","Shows","var(--accent2)"],["movie","Movies","var(--amber)"]].map(([bk,lb,col])=>{
+    const pct=jac(identSet(me,bk), identSet(u,bk));
+    return `<div class="crew-bar"><span class="cbl">${lb}</span><span class="cbar"><i style="width:${pct}%;background:${col}"></i></span><span class="cbv">${pct}%</span></div>`;
+  }).join("");
+  return `<div class="crewcard" data-act="viewcrew" data-uid="${esc(String(u))}">
+    <div class="crew-hd">${avatarHTML(u)}<div class="crew-nm"><b>${esc(displayName(u))}</b><span class="crew-sub">${total} tracked</span></div>
+      <div class="crew-match"><div class="cmv">${match}%</div><div class="cml">taste match</div></div></div>
+    ${bars}
+    <div class="crew-cta">Tap to view ${esc(displayName(u))}'s list →</div>
+  </div>`;
+}
+window.renderCrew=function(){
+  const root=$("#crewRoot"); if(!root) return;
+  let html=`<h2 class="today-greet">👥 Crew</h2>`;
+  if(!loggedIn()){ root.innerHTML=html+`<div class="hint" style="padding:12px 4px">Log in to see your crew and taste matches.</div>`; return; }
+  const me=meId();
+  const others=allOwnerIds().filter(u=>u!==me);
+  if(!others.length){ root.innerHTML=html+`<div class="hint" style="padding:12px 4px">No crew yet — your friends will show up here once they've set up their profile.</div>`; return; }
+  html+=`<div class="label-row">Your crew</div>`;
+  html+=others.map(crewCardHTML).join("");
+  const onNow=[]; const seen=new Set();
+  others.forEach(u=>showsForUid(u).filter(s=>s.status==="Watching").forEach(s=>{ if(!seen.has(s.id)){ seen.add(s.id); onNow.push(s); } }));
+  if(onNow.length){
+    html+=`<div class="today-sec"><h3 class="sec-h">▶ What the crew is on right now</h3><div class="week-loose">${onNow.slice(0,24).map(weekCard).join("")}</div></div>`;
+  }
+  root.innerHTML=html;
+};
+// Discover "add" posters and Crew "view list" cards (both rebuilt on each render, so delegate).
+document.addEventListener("click",e=>{
+  const dc=e.target.closest('[data-act="discadd"]');
+  if(dc){ try{ const m=JSON.parse(dc.dataset.m); addShow(m); const b=dc.querySelector(".pcd"); if(b){ b.textContent="✓ on list"; b.classList.add("done"); } }catch(err){} return; }
+  const vc=e.target.closest('[data-act="viewcrew"]');
+  if(vc){ viewingUid=vc.dataset.uid; const sf=$("#statusFilter"); if(sf) sf.value="all"; statusFilter="all"; const lf=$("#listFilter"); if(lf) lf.value=""; listFilter=""; setHomeMode("mylist"); }
+});
 function setHomeMode(m){
   window.homeMode=m;
   document.body.classList.toggle("mode-today", m==="today");
+  document.body.classList.toggle("mode-discover", m==="discover");
+  document.body.classList.toggle("mode-crew", m==="crew");
   const nav=$("#homeNav"); if(nav) [...nav.children].forEach(b=>b.classList.toggle("active", b.dataset.home===m));
   render();
 }
@@ -2248,6 +2386,8 @@ function render(){
   if(document.querySelector(".overlay.show")){ pendingView=true; return; }
   pendingView=false;
   if(window.homeMode==="today"){ renderToday(); return; }   // landing view spans all boards
+  if(window.homeMode==="discover"){ renderDiscover(); return; }
+  if(window.homeMode==="crew"){ renderCrew(); return; }
   const st=captureViewState();
   const mine=ownerShows();
   const hero=$("#heroRoot"); if(hero) hero.innerHTML = mine.length ? heroHTML() : "";
