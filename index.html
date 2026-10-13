@@ -857,8 +857,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.10b";
+const APP_VERSION = "2026.10.13a";
 const WHATS_NEW = [
+  { v:"2026.10.13a", title:"Browse Shows by day + tidier dub schedule", items:[
+    "📅 <b>Browse Shows by release day</b> — the weekday chips in <b>＋ Add</b> now work on the <b>🍿 Shows</b> board too, not just anime. Tap Sun–Sat to see TV series airing that day (scripted English-language series, powered by TMDB). Movies don't have a weekly release day, so they don't get it.",
+    "🎙️ <b>Cleaner weekly view</b> — an English dub that's just rolling out for something you've only marked <b>Plan to watch</b> no longer jumps into the weekly day columns. It now waits in the <b>🎙️ Dub still releasing</b> section until you move it to <b>Watching</b> (or set a dub day yourself). Shows you're actively watching still pin to their day as before.",
+  ]},
   { v:"2026.10.10b", title:"New: 🧭 Discover &amp; 👥 Crew", items:[
     "🧭 <b>Discover</b> — a new tab with <b>🔥 Trending anime</b>, <b>🆕 new seasons</b> of shows you watch, and a <b>“Because your crew likes these”</b> row of titles Demon &amp; Matt track that you don't yet. Add any of them in one tap.",
     "👥 <b>Crew</b> — see each crew member with a real <b>taste-match %</b> (how much of your lists overlap) and per-board bars for Anime / Shows / Movies, plus <b>what everyone's watching right now</b>. Tap a member to jump into their list.",
@@ -2064,7 +2068,14 @@ function renderWeek(){
     const slot=weekSlot(s);
     if(slot.kind==="finished"){ finished.push(s); return; }
     if(slot.kind==="dropped"){ dropped.push(s); return; }
-    if(slot.kind==="dub"){ byDay[slot.dayIndex].push({s,at:slot.at,dub:true}); return; }
+    if(slot.kind==="dub"){
+      // Only pin to the weekly day grid if you're actively following it (or set the dub day by hand).
+      // Catch-up dubs for titles you Plan to watch go to the "Dub still releasing" section, not the grid.
+      const manualDay = slot.ds && slot.ds.source==="manual";
+      if(manualDay || s.status==="Watching" || s.status==="Caught up"){ byDay[slot.dayIndex].push({s,at:slot.at,dub:true}); }
+      else { dubReleasing.push(s); }
+      return;
+    }
     if(slot.kind==="sub"){ byDay[slot.dayIndex].push({s,at:slot.at}); return; }
     if(slot.kind==="dubTBD"){ dubReleasing.push(s); return; }     // dub coming, day not learned yet
     if(slot.kind==="soon"){ soon.push(s); return; }               // hasn't premiered yet
@@ -2088,7 +2099,7 @@ function renderWeek(){
   }
   if(boardKind==="anime") html+=`<div class="dub-legend"><span class="dubdot"></span> Purple = estimated English-dub day (learned from when the dub was last bumped, or set by hand). Sub airings are exact.</div>`;
   if(dubReleasing.length){
-    html+=`<h3 class="sec-h">🎙️ Dub still releasing <span class="sec-note">dub day not learned yet — bump the dub counter after a new episode, or set the day in Edit</span></h3>
+    html+=`<h3 class="sec-h">🎙️ Dub still releasing <span class="sec-note">English dub rolling out weekly — move it to Watching (or set a dub day in Edit) to pin it to its day above</span></h3>
       <div class="week-loose">${renderGrouped(dubReleasing, weekCard)}</div>`;
   }
   if(onBreak.length){
@@ -2541,7 +2552,27 @@ async function browseByDay(dow){
     renderResults(media, `📅 Airing on ${DAYS[dow]}s · ${media.length} show${media.length>1?"s":""} (sub broadcast day):`);
   }catch(e){ box.innerHTML=`<div class="hint">Couldn't load ${DAYS[dow]} releases: ${esc(e.message)}.</div>`; }
 }
-$("#dayChips").addEventListener("click",e=>{ const b=e.target.closest(".daychip"); if(!b) return; browseByDay(Number(b.dataset.dow)); });
+// Browse Shows (TMDB TV) that air on a given weekday — the Shows-board equivalent of browseByDay.
+// TMDB has no airing-schedule API, but Discover filters TV by episode air date, so we query the
+// next occurrence of the chosen weekday. Filtered to English scripted series (drops anime + the
+// talk / news / reality / soap noise) so it surfaces what you'd actually track.
+async function browseByDayTv(dow){
+  const box=$("#results"); const seq=++searchSeq;
+  [...document.querySelectorAll("#dayChips .daychip")].forEach(b=>b.classList.toggle("active", Number(b.dataset.dow)===dow));
+  box.innerHTML=`<div style="text-align:center;padding:24px"><span class="spinner"></span><div class="hint" style="margin-top:8px">Finding shows that air on ${DAYS[dow]}…</div></div>`;
+  if(!tmdbReady()){ box.innerHTML=`<div class="hint">No TMDB key configured yet.</div>`; return; }
+  const d=new Date(); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7));   // next occurrence (today if it matches)
+  const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;   // local date (not UTC)
+  try{
+    const data=await tmdbGet(`/discover/tv?air_date.gte=${ds}&air_date.lte=${ds}&sort_by=popularity.desc&language=en-US&with_original_language=en&without_genres=16,10763,10764,10766,10767&page=1`);
+    if(seq!==searchSeq) return;
+    const media=(data.results||[]).map(x=>({...x, media_type:"tv"}));
+    if(!media.length){ box.innerHTML=`<div class="hint">No ${DAYS[dow]} shows found — try another day or 🔥 Trending.</div>`; return; }
+    renderResultsTv(media, `📅 Airing on ${DAYS[dow]}s · ${media.length} show${media.length>1?"s":""}:`);
+  }catch(e){ box.innerHTML=`<div class="hint">Couldn't load ${DAYS[dow]} shows: ${esc(e.message)}.</div>`; }
+}
+$("#dayChips").addEventListener("click",e=>{ const b=e.target.closest(".daychip"); if(!b) return; const dow=Number(b.dataset.dow); if(boardKind==="show") browseByDayTv(dow); else browseByDay(dow); });
 function renderResults(media, heading){
   const box=$("#results");
   const have=new Set(showsForUid(meId()).map(s=>String(s.anilistId)));   // only MY list counts as "added"
@@ -3129,7 +3160,7 @@ function applyBoardUI(){
   const h=document.querySelector("#addOverlay .modal h3"); if(h) h.textContent = boardKind==="movie" ? "Add a movie" : (boardKind==="show" ? "Add a show" : "Add an anime");
   const si=$("#searchInput"); if(si) si.placeholder = boardKind==="movie" ? "Search e.g. Dune, Oppenheimer…" : (boardKind==="show" ? "Search e.g. Stranger Things, The Bear…" : "Search e.g. Jujutsu Kaisen, One Piece…");
   const gr=document.querySelector("#addOverlay .genre-row"); if(gr) gr.style.display = tmdb?"none":"";
-  const dr=document.querySelector("#addOverlay .day-row"); if(dr) dr.style.display = tmdb?"none":"";
+  const dr=document.querySelector("#addOverlay .day-row"); if(dr) dr.style.display = (boardKind==="movie")?"none":"";   // browse-by-day: anime + shows (not movies)
   const rb=$("#refreshBtn"); if(rb) rb.title = tmdb?"Refresh from TMDB":"Refresh schedules from AniList";
   const ib=$("#importBtn"); if(ib) ib.style.display = tmdb?"none":"";   // import is AniList/MAL only
   const ff=$("#fmtFilter"); if(ff) ff.style.display = (boardKind==="anime")?"":"none";   // movie/series filter is anime-only

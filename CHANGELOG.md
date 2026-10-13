@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10 — Browse Shows by day + tidier dub schedule
+- **Browse Shows by release day** — the Sun–Sat chips in the Add flow now work on the 🍿 Shows
+  board, not just anime. `browseByDayTv(dow)` queries TMDB `/discover/tv` with
+  `air_date.gte=air_date.lte=<next weekday, local date>`, `with_original_language=en` and
+  `without_genres=16,10763,10764,10766,10767` (drops animation/news/reality/soap/talk) so it
+  surfaces scripted series (Slow Horses, Chicago P.D., Abbott Elementary…). The `#dayChips`
+  handler routes to `browseByDayTv` on the show board, `browseByDay` on anime. `applyBoardUI`
+  shows the `.day-row` for anime + shows, hides it only for Movies (no weekly release day).
+- **Dub schedule no longer clutters the weekly grid** — in `renderWeek`, a `slot.kind==="dub"`
+  title is only pinned to a day column when it's `Watching`/`Caught up` or has a manually-set dub
+  day (`slot.ds.source==="manual"`). Catch-up dubs for `Plan to watch` titles now go to the
+  "🎙️ Dub still releasing" section instead (fixes the Aristocrat S1/S2 "suddenly on Sunday" report
+  — the dub premiered Oct 11 via AnimeSchedule). Verified: Aristocrat S1/S2 move out, BLEACH
+  (Watching + manual day) stays pinned. App version → `2026.10.13a`, sw cache → `v5`.
+
 ## 2026-10 — 🧭 Discover & 👥 Crew (redesign increment 2)
 - **Discover tab** — `renderDiscover()` on `#discoverRoot`. Shows **🔥 Trending anime**
   (live AniList `TRENDING_Q`, deduped against your list with ✓/＋ badges), **🆕 new seasons**
