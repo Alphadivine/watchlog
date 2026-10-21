@@ -468,39 +468,6 @@
   .wn-older{margin-top:4px}
   .wn-older>summary{cursor:pointer;color:var(--faint);font-size:13px;padding:6px 0;list-style:none}
   .wn-older>summary:hover{color:var(--text)}
-  /* ---------- Today home screen ---------- */
-  .homenav{display:flex;gap:8px;justify-content:center;margin:2px 0 16px;flex-wrap:wrap}
-  .homenav button{background:var(--card);border:1px solid var(--line);color:var(--muted);padding:9px 22px;font-weight:800;font-size:15px;border-radius:13px;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:color .2s,border-color .2s,transform .12s}
-  .homenav button:hover{color:var(--text);border-color:rgba(139,108,255,.5)}
-  .homenav button.active{background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border-color:transparent;box-shadow:0 6px 18px rgba(90,63,240,.4)}
-  #todayRoot,#discoverRoot,#crewRoot{display:none}
-  body.mode-today #todayRoot,body.mode-discover #discoverRoot,body.mode-crew #crewRoot{display:block;animation:cardIn .4s ease both}
-  body.mode-today .boardseg-wrap,body.mode-today .controls,body.mode-today #tzNote,body.mode-today #heroRoot,body.mode-today #viewRoot,
-  body.mode-discover .boardseg-wrap,body.mode-discover .controls,body.mode-discover #tzNote,body.mode-discover #heroRoot,body.mode-discover #viewRoot,
-  body.mode-crew .boardseg-wrap,body.mode-crew .controls,body.mode-crew #tzNote,body.mode-crew #heroRoot,body.mode-crew #viewRoot{display:none!important}
-  /* Discover */
-  .disc-actions{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 6px}
-  /* Crew */
-  .crewcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .14s,border-color .2s,box-shadow .2s}
-  .crewcard:hover{transform:translateY(-2px);border-color:rgba(139,108,255,.5);box-shadow:0 10px 28px rgba(0,0,0,.35)}
-  .crew-hd{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-  .crew-hd .pav{width:44px;height:44px;font-size:19px}
-  .crew-nm{display:flex;flex-direction:column;flex:1;min-width:0}
-  .crew-nm b{font-size:16px;font-weight:800}
-  .crew-sub{font-size:12px;color:var(--faint)}
-  .crew-match{text-align:center;flex:0 0 auto;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:6px 12px}
-  .crew-match .cmv{font-size:19px;font-weight:900;background:linear-gradient(90deg,var(--accent2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .crew-match .cml{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.4px}
-  .crew-bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:12px}
-  .crew-bar .cbl{width:54px;color:var(--muted);font-weight:700;flex:0 0 auto}
-  .crew-bar .cbar{flex:1;height:8px;border-radius:999px;background:rgba(140,140,220,.15);overflow:hidden}
-  .crew-bar .cbar i{display:block;height:100%;border-radius:999px}
-  .crew-bar .cbv{width:38px;text-align:right;color:var(--muted);font-weight:700;flex:0 0 auto}
-  .crew-cta{margin-top:10px;font-size:12px;color:var(--accent2);font-weight:700}
-  .label-row{font-size:13px;color:var(--faint);font-weight:700;margin:4px 2px 10px;text-transform:uppercase;letter-spacing:.4px}
-  .today-greet{font-size:24px;font-weight:900;margin:2px 0 10px;background:linear-gradient(90deg,#fff,var(--accent2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .today-sec{margin-bottom:8px}
-  .today-sec .sec-h{margin:18px 0 12px}
 </style>
 </head>
 <body>
@@ -522,12 +489,6 @@
 </header>
 
 <main>
-  <div class="homenav" id="homeNav">
-    <button data-home="today" class="active">⚡ Today</button>
-    <button data-home="mylist">📺 My List</button>
-    <button data-home="discover">🧭 Discover</button>
-    <button data-home="crew">👥 Crew</button>
-  </div>
   <div id="profilesBar" class="profiles"></div>
   <div class="boardseg-wrap">
     <div class="seg boardseg" id="boardSeg">
@@ -575,9 +536,6 @@
   <div id="roBanner" style="display:none">👁 You're viewing <b id="roName">someone</b>'s list — read-only. Switch back to <b>your</b> profile to make changes.</div>
   <div id="heroRoot"></div>
   <div id="viewRoot"></div>
-  <div id="todayRoot"></div>
-  <div id="discoverRoot"></div>
-  <div id="crewRoot"></div>
 </main>
 
 <button class="btn fab" id="fabAdd" style="display:none">＋</button>
@@ -848,14 +806,6 @@ const CONFIG = {
   ANIMESCHEDULE: {
     worker: "https://watchlog-dubs.quentinclayton643.workers.dev"   // Cloudflare Worker relaying AnimeSchedule dub data
   },
-  // AniList (the anime data source) is called directly from the browser. It sometimes
-  // blocks browser/CORS calls (returns 403 with no CORS headers), which knocks out the
-  // whole Anime board. As a fallback, WatchLog can relay AniList through the same Worker
-  // above (its POST /anilist endpoint). Leave `proxy` blank to auto-derive it from the
-  // ANIMESCHEDULE worker URL; set it explicitly to use a different Worker.
-  ANILIST: {
-    proxy: ""   // e.g. "https://watchlog-dubs.<you>.workers.dev/anilist"; blank = derive from ANIMESCHEDULE.worker
-  },
 };
 // Which shared board this page uses. Everyone on the same board sees the same list.
 // Add ?board=friends to the URL to use a different shared board.
@@ -865,26 +815,8 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.21a";
+const APP_VERSION = "2026.10.06m";
 const WHATS_NEW = [
-  { v:"2026.10.21a", title:"Anime board stays up when AniList has a wobble", items:[
-    "🛡️ <b>AniList fallback</b> — AniList sometimes blocks browser requests (a 403 that knocks out the whole Anime board). WatchLog now automatically reroutes through your own Cloudflare Worker when that happens, so anime keeps loading. It tries AniList directly first and only falls back when it has to — nothing to turn on.",
-    "📺 The 🍿 Shows &amp; 🎬 Movies boards (TMDB) were never affected; this just makes the Anime board as resilient.",
-  ]},
-  { v:"2026.10.13a", title:"Browse Shows by day + tidier dub schedule", items:[
-    "📅 <b>Browse Shows by release day</b> — the weekday chips in <b>＋ Add</b> now work on the <b>🍿 Shows</b> board too, not just anime. Tap Sun–Sat to see TV series airing that day (scripted English-language series, powered by TMDB). Movies don't have a weekly release day, so they don't get it.",
-    "🎙️ <b>Cleaner weekly view</b> — an English dub that's just rolling out for something you've only marked <b>Plan to watch</b> no longer jumps into the weekly day columns. It now waits in the <b>🎙️ Dub still releasing</b> section until you move it to <b>Watching</b> (or set a dub day yourself). Shows you're actively watching still pin to their day as before.",
-  ]},
-  { v:"2026.10.10b", title:"New: 🧭 Discover &amp; 👥 Crew", items:[
-    "🧭 <b>Discover</b> — a new tab with <b>🔥 Trending anime</b>, <b>🆕 new seasons</b> of shows you watch, and a <b>“Because your crew likes these”</b> row of titles Demon &amp; Matt track that you don't yet. Add any of them in one tap.",
-    "👥 <b>Crew</b> — see each crew member with a real <b>taste-match %</b> (how much of your lists overlap) and per-board bars for Anime / Shows / Movies, plus <b>what everyone's watching right now</b>. Tap a member to jump into their list.",
-    "🧭 The top nav is now <b>⚡ Today · 📺 My List · 🧭 Discover · 👥 Crew</b>.",
-  ]},
-  { v:"2026.10.10a", title:"New: a ⚡ Today home screen", items:[
-    "⚡ <b>Today</b> — WatchLog now opens on a single at-a-glance landing view that spans <b>all three boards</b>. A <b>⚡ Today / 📺 My List</b> toggle up top switches between it and the full board you already know.",
-    "📅 <b>Dropping today</b> shows only what actually airs on today's date (sub or dub); if nothing's due, it shows <b>⏳ Up next</b> — your soonest airing. <b>▶ Continue watching</b> gathers everything you're in the middle of, and <b>🎙️ Dub watch</b> lists your next English dubs. Any recommendations or new seasons waiting for you show here too.",
-    "Every card taps straight through to its details, exactly like the weekly view. Switch to <b>📺 My List</b> any time for the per-board Weekly / List / Posters views, filters and sorting — nothing there changed.",
-  ]},
   { v:"2026.10.06m", title:"Auto dub dates (AnimeSchedule)", items:[
     "🎙️ <b>Dub dates fill in automatically</b> — WatchLog can now pull English-dub release info (the weekly dub day + an estimated latest dub episode) from <b>AnimeSchedule</b>, so you don't have to track every dub by hand. It's marked <b>· AnimeSchedule</b> / <i>est.</i> to set it apart, and your manual <b>🎙️</b> counter always wins.",
     "<i>One-time setup:</i> this needs a small Cloudflare Worker (free, no token) — see <b>Docs/Setup guide (AnimeSchedule dubs).md</b>. Until it's set up, nothing changes and the manual counter works as before.",
@@ -966,54 +898,13 @@ const WHATS_NEW = [
 
 /* ---------------- AniList ---------------- */
 const ANILIST = "https://graphql.anilist.co";
-// Fallback relay: when the browser can't reach AniList directly (it periodically 403s
-// cross-origin browser calls, which otherwise kills the whole Anime board), route the
-// same query through our Cloudflare Worker's POST /anilist endpoint. Derived from the
-// AnimeSchedule worker URL unless CONFIG.ANILIST.proxy is set explicitly.
-function aniProxyUrl(){
-  const explicit=(CONFIG.ANILIST&&CONFIG.ANILIST.proxy||"").trim();
-  if(explicit) return explicit;
-  const base=(CONFIG.ANIMESCHEDULE&&CONFIG.ANIMESCHEDULE.worker||"").trim().replace(/\/+$/,"");
-  return base ? base+"/anilist" : "";
-}
-// Once a direct call fails at the network/CORS/edge layer, skip straight to the proxy for
-// a cooldown window so we don't pay the failed-direct latency on every call during an outage.
-let aniDirectDownUntil=0;
-const ANI_COOLDOWN=10*60*1000;   // 10 min, then re-probe direct
-async function aniPost(url, payload){
-  const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},
-    body:JSON.stringify(payload)});
-  if(!r.ok){ const err=new Error("AniList "+r.status); err.reached=false; throw err; }   // edge block / 5xx — proxy may help
-  const j=await r.json();
-  if(j.errors){ const err=new Error(j.errors[0].message); err.reached=true; throw err; } // AniList answered — proxy won't help
-  return j.data;
-}
 async function aniQuery(query, variables){
-  const payload={query,variables};
-  const proxy=aniProxyUrl();
-  const directCooling=proxy && Date.now()<aniDirectDownUntil;
-  // Try direct first (unless we're in a cooldown and have a proxy to use).
-  if(!directCooling){
-    try{ const d=await aniPost(ANILIST,payload); aniDirectDownUntil=0; return d; }
-    catch(e){
-      // If AniList actually answered (a real GraphQL error), the proxy can't help — surface it.
-      // Only fall back when the call failed to reach AniList (network/CORS error or an edge 4xx/5xx).
-      if(e.reached || !proxy) throw e;
-      aniDirectDownUntil=Date.now()+ANI_COOLDOWN;
-      try{ console.warn("AniList direct failed ("+e.message+") — falling back to Worker proxy"); }catch(_){}
-    }
-  }
-  // Proxy path (either in cooldown, or direct just failed to reach AniList).
-  try{ return await aniPost(proxy,payload); }
-  catch(e2){
-    if(e2.reached) throw e2;             // proxy reached AniList and it returned a query error — real, surface it
-    // Proxy couldn't reach AniList either. If we skipped direct because of cooldown, give direct
-    // one more shot before giving up (the outage may have cleared mid-cooldown).
-    if(directCooling){
-      try{ const d=await aniPost(ANILIST,payload); aniDirectDownUntil=0; return d; }catch(_){}
-    }
-    throw new Error("AniList unreachable (direct + proxy): "+e2.message);
-  }
+  const r = await fetch(ANILIST,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},
+    body:JSON.stringify({query,variables})});
+  if(!r.ok) throw new Error("AniList "+r.status);
+  const j = await r.json();
+  if(j.errors) throw new Error(j.errors[0].message);
+  return j.data;
 }
 const SEARCH_Q = `query($s:String,$g:[String]){Page(perPage:16){media(search:$s,genre_in:$g,type:ANIME,sort:[SEARCH_MATCH,POPULARITY_DESC],isAdult:false){
   id title{romaji english} coverImage{medium} format status episodes seasonYear
@@ -2121,14 +2012,7 @@ function renderWeek(){
     const slot=weekSlot(s);
     if(slot.kind==="finished"){ finished.push(s); return; }
     if(slot.kind==="dropped"){ dropped.push(s); return; }
-    if(slot.kind==="dub"){
-      // Only pin to the weekly day grid if you're actively following it (or set the dub day by hand).
-      // Catch-up dubs for titles you Plan to watch go to the "Dub still releasing" section, not the grid.
-      const manualDay = slot.ds && slot.ds.source==="manual";
-      if(manualDay || s.status==="Watching" || s.status==="Caught up"){ byDay[slot.dayIndex].push({s,at:slot.at,dub:true}); }
-      else { dubReleasing.push(s); }
-      return;
-    }
+    if(slot.kind==="dub"){ byDay[slot.dayIndex].push({s,at:slot.at,dub:true}); return; }
     if(slot.kind==="sub"){ byDay[slot.dayIndex].push({s,at:slot.at}); return; }
     if(slot.kind==="dubTBD"){ dubReleasing.push(s); return; }     // dub coming, day not learned yet
     if(slot.kind==="soon"){ soon.push(s); return; }               // hasn't premiered yet
@@ -2152,7 +2036,7 @@ function renderWeek(){
   }
   if(boardKind==="anime") html+=`<div class="dub-legend"><span class="dubdot"></span> Purple = estimated English-dub day (learned from when the dub was last bumped, or set by hand). Sub airings are exact.</div>`;
   if(dubReleasing.length){
-    html+=`<h3 class="sec-h">🎙️ Dub still releasing <span class="sec-note">English dub rolling out weekly — move it to Watching (or set a dub day in Edit) to pin it to its day above</span></h3>
+    html+=`<h3 class="sec-h">🎙️ Dub still releasing <span class="sec-note">dub day not learned yet — bump the dub counter after a new episode, or set the day in Edit</span></h3>
       <div class="week-loose">${renderGrouped(dubReleasing, weekCard)}</div>`;
   }
   if(onBreak.length){
@@ -2289,152 +2173,6 @@ function restoreViewState(st){
   }catch(e){}
   if(st.y) try{ window.scrollTo(0, st.y); }catch(e){}
 }
-/* ---------------- Today home screen ----------------
-   A single at-a-glance landing view that spans ALL boards: what drops today,
-   what you're in the middle of, and the next dubs. Reuses weekCard() so cards
-   look and behave (tap → details) exactly like the weekly view. Toggled with
-   the ⚡ Today / 📺 My List nav; render() branches to it when homeMode==="today". */
-window.homeMode = "today";
-window.renderToday = function(){
-  const root=$("#todayRoot"); if(!root) return;
-  const mine=(typeof ownerShows==="function"?ownerShows():[]);
-  if(!mine.length){ root.innerHTML=`<div class="empty-state"><div class="big">⚡</div><h2 style="margin:0 0 6px">Nothing tracked yet</h2><p>Switch to <b>📺 My List</b> and add something to see your day here.</p></div>`; return; }
-  const ws=s=>{ try{ return weekSlot(s)||{}; }catch(e){ return {}; } };
-  const card=s=>{ try{ return weekCard(s); }catch(e){ return ""; } };
-  const now=Date.now();
-  const withSlot=mine.map(s=>({s,slot:ws(s)}));
-  // Dropping TODAY: an actual air moment landing on today's calendar date (not merely
-  // "airs on this weekday" — that wrongly caught shows that already aired earlier this week).
-  const dueToday=withSlot.filter(x=>(x.slot.kind==="sub"||x.slot.kind==="dub") && x.slot.at && isSameLocalDay(x.slot.at))
-    .sort((a,b)=>(a.slot.at||0)-(b.slot.at||0)).map(x=>x.s);
-  const upcoming=withSlot.filter(x=>(x.slot.kind==="sub"||x.slot.kind==="dub") && x.slot.at && x.slot.at>now)
-    .sort((a,b)=>a.slot.at-b.slot.at).map(x=>x.s);
-  const watching=mine.filter(s=>s.status==="Watching");
-  const dubWatch=mine.filter(s=>(s.kind||"anime")==="anime" && ["dub","dubTBD"].includes(ws(s).kind));
-  const sec=(title,note,arr)=>`<div class="today-sec"><h3 class="sec-h">${title} ${note?`<span class="sec-note">${note}</span>`:""}</h3><div class="week-loose">${arr.map(card).join("")}</div></div>`;
-  const who=(window.viewingUid && typeof meId==="function" && viewingUid!==meId()) ? (esc(displayName(viewingUid))+"'s ") : "Your ";
-  let html=`<h2 class="today-greet">⚡ ${who}day</h2>`;
-  if(dueToday.length) html+=sec("📅 Dropping today","across all your boards",dueToday);
-  else if(upcoming.length) html+=sec("⏳ Up next","soonest to air",[upcoming[0]]);
-  if(watching.length) html+=sec("▶ Continue watching","in the middle of",watching.slice(0,16));
-  if(dubWatch.length) html+=sec("🎙️ Dub watch","next English dubs",dubWatch.slice(0,16));
-  try{ const r=recsCalloutHTML && recsCalloutHTML(); if(r) html+=`<div class="today-sec">${r}</div>`; }catch(e){}
-  try{ const n=newSeasonsCalloutHTML && newSeasonsCalloutHTML(); if(n) html+=`<div class="today-sec">${n}</div>`; }catch(e){}
-  root.innerHTML=html;
-};
-/* ---------------- Discover + Crew (redesign increment 2) ----------------
-   Two more landing screens reached from the ⚡/📺/🧭/👥 nav. Discover surfaces
-   trending titles, new seasons of your anime, and what your crew likes that you
-   don't track yet. Crew shows each member with a real taste-match % (Jaccard
-   overlap of tracked titles) and per-board alignment bars. Both reuse the live
-   app's cards and data (Firebase lists, AniList) — nothing mocked. */
-// Which board a show belongs to, as a plain key.
-function boardOfShow(s){ const k=s.kind||"anime"; if(k==="anime") return "anime"; return (s.mediaType||"tv")==="movie" ? "movie" : "show"; }
-// Set of a person's tracked title identities, optionally scoped to one board.
-function identSet(uid, bk){ return new Set(showsForUid(uid).filter(s=>!bk||boardOfShow(s)===bk).map(showIdent)); }
-// Jaccard overlap of two identity sets, as a 0–100 percentage.
-function jac(a,b){ if(!a.size && !b.size) return 0; let i=0; a.forEach(x=>{ if(b.has(x)) i++; }); const u=new Set([...a,...b]).size; return u ? Math.round(i/u*100) : 0; }
-function tasteMatch(uid){ return jac(identSet(meId()), identSet(uid)); }
-
-/* ---- Discover ---- */
-let discTrend=null, discTrendLoading=false;
-async function loadDiscTrending(){
-  if(discTrendLoading) return;
-  discTrendLoading=true;
-  try{ const d=await aniQuery(TRENDING_Q,{}); discTrend=(d.Page.media||[]).filter(m=>!m.isAdult).slice(0,14); }
-  catch(e){ discTrend=[]; }
-  discTrendLoading=false;
-  if(window.homeMode==="discover") renderDiscover();
-}
-function discPoster(m){
-  const t=m.title.english||m.title.romaji;
-  const have=showsForUid(meId()).some(x=>String(x.anilistId)===String(m.id));
-  const bg=(m.coverImage&&m.coverImage.medium)?`background-image:url('${esc(hiRes(m.coverImage.medium))}')`:"";
-  const payload={id:m.id,title:t,cover:(m.coverImage&&m.coverImage.medium)||"",site_url:m.siteUrl,status:m.status};
-  return `<button class="poster" data-act="discadd" data-m='${esc(JSON.stringify(payload))}' style="${bg}" title="${esc(t)}">
-    <span class="poster-grad"></span>
-    <span class="pcd ${have?"done":""}">${have?"✓ on list":"＋ add"}</span>
-    <span class="poster-meta"><span class="pt">${esc(t)}</span></span></button>`;
-}
-// Titles a crew member tracks that I don't — ordered by how many of the crew track them.
-function discCrewLikes(){
-  if(!loggedIn()) return [];
-  const me=meId();
-  const mine=new Set(showsForUid(me).map(showIdent));
-  const tally=new Map(), rep=new Map();
-  allOwnerIds().filter(u=>u!==me).forEach(u=>{
-    showsForUid(u).forEach(s=>{ const k=showIdent(s); if(mine.has(k)) return; tally.set(k,(tally.get(k)||0)+1); if(!rep.has(k)) rep.set(k,s); });
-  });
-  return [...tally.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k])=>rep.get(k));
-}
-window.renderDiscover=function(){
-  const root=$("#discoverRoot"); if(!root) return;
-  let html=`<h2 class="today-greet">🧭 Discover</h2>`;
-  html+=`<div class="disc-actions"><button class="btn ghost sm" id="discAdd">🔍 Search &amp; add</button><button class="btn ghost sm" id="discPick">🎲 Pick for us</button></div>`;
-  html+=`<div class="today-sec"><h3 class="sec-h">🔥 Trending anime this week</h3>`;
-  if(discTrend && discTrend.length) html+=`<div class="posterwall">${discTrend.map(discPoster).join("")}</div>`;
-  else html+=`<div class="hint" style="padding:8px 4px"><span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Loading trending…</div>`;
-  html+=`</div>`;
-  if(typeof newSeasonsList!=="undefined" && newSeasonsList && newSeasonsList.length){
-    html+=`<div class="today-sec"><h3 class="sec-h">🆕 New seasons of what you watch</h3><div class="grid-list">${newSeasonsList.map(seqCardHTML).join("")}</div></div>`;
-  }
-  const likes=discCrewLikes();
-  if(likes.length){
-    html+=`<div class="today-sec"><h3 class="sec-h">👥 Because your crew likes these <span class="sec-note">tracked by your crew, not on your list yet</span></h3><div class="grid-list">${likes.map(showCard).join("")}</div></div>`;
-  }
-  root.innerHTML=html;
-  const a=$("#discAdd"); if(a) a.onclick=()=>{ $("#addOverlay").classList.add("show"); const si=$("#searchInput"); if(si) si.focus(); };
-  const p=$("#discPick"); if(p) p.onclick=pickForUs;
-  if(!discTrend && !discTrendLoading) loadDiscTrending();
-};
-
-/* ---- Crew ---- */
-function crewCardHTML(u){
-  const me=meId();
-  const match=tasteMatch(u);
-  const total=identSet(u).size;
-  const bars=[["anime","Anime","var(--accent)"],["show","Shows","var(--accent2)"],["movie","Movies","var(--amber)"]].map(([bk,lb,col])=>{
-    const pct=jac(identSet(me,bk), identSet(u,bk));
-    return `<div class="crew-bar"><span class="cbl">${lb}</span><span class="cbar"><i style="width:${pct}%;background:${col}"></i></span><span class="cbv">${pct}%</span></div>`;
-  }).join("");
-  return `<div class="crewcard" data-act="viewcrew" data-uid="${esc(String(u))}">
-    <div class="crew-hd">${avatarHTML(u)}<div class="crew-nm"><b>${esc(displayName(u))}</b><span class="crew-sub">${total} tracked</span></div>
-      <div class="crew-match"><div class="cmv">${match}%</div><div class="cml">taste match</div></div></div>
-    ${bars}
-    <div class="crew-cta">Tap to view ${esc(displayName(u))}'s list →</div>
-  </div>`;
-}
-window.renderCrew=function(){
-  const root=$("#crewRoot"); if(!root) return;
-  let html=`<h2 class="today-greet">👥 Crew</h2>`;
-  if(!loggedIn()){ root.innerHTML=html+`<div class="hint" style="padding:12px 4px">Log in to see your crew and taste matches.</div>`; return; }
-  const me=meId();
-  const others=allOwnerIds().filter(u=>u!==me);
-  if(!others.length){ root.innerHTML=html+`<div class="hint" style="padding:12px 4px">No crew yet — your friends will show up here once they've set up their profile.</div>`; return; }
-  html+=`<div class="label-row">Your crew</div>`;
-  html+=others.map(crewCardHTML).join("");
-  const onNow=[]; const seen=new Set();
-  others.forEach(u=>showsForUid(u).filter(s=>s.status==="Watching").forEach(s=>{ if(!seen.has(s.id)){ seen.add(s.id); onNow.push(s); } }));
-  if(onNow.length){
-    html+=`<div class="today-sec"><h3 class="sec-h">▶ What the crew is on right now</h3><div class="week-loose">${onNow.slice(0,24).map(weekCard).join("")}</div></div>`;
-  }
-  root.innerHTML=html;
-};
-// Discover "add" posters and Crew "view list" cards (both rebuilt on each render, so delegate).
-document.addEventListener("click",e=>{
-  const dc=e.target.closest('[data-act="discadd"]');
-  if(dc){ try{ const m=JSON.parse(dc.dataset.m); addShow(m); const b=dc.querySelector(".pcd"); if(b){ b.textContent="✓ on list"; b.classList.add("done"); } }catch(err){} return; }
-  const vc=e.target.closest('[data-act="viewcrew"]');
-  if(vc){ viewingUid=vc.dataset.uid; const sf=$("#statusFilter"); if(sf) sf.value="all"; statusFilter="all"; const lf=$("#listFilter"); if(lf) lf.value=""; listFilter=""; setHomeMode("mylist"); }
-});
-function setHomeMode(m){
-  window.homeMode=m;
-  document.body.classList.toggle("mode-today", m==="today");
-  document.body.classList.toggle("mode-discover", m==="discover");
-  document.body.classList.toggle("mode-crew", m==="crew");
-  const nav=$("#homeNav"); if(nav) [...nav.children].forEach(b=>b.classList.toggle("active", b.dataset.home===m));
-  render();
-}
 function render(){
   const ro=isReadOnly();
   const canEdit=loggedIn() && !ro;
@@ -2449,9 +2187,6 @@ function render(){
   // it closes (flushed by closeOverlay and the 1.2s safety interval).
   if(document.querySelector(".overlay.show")){ pendingView=true; return; }
   pendingView=false;
-  if(window.homeMode==="today"){ renderToday(); return; }   // landing view spans all boards
-  if(window.homeMode==="discover"){ renderDiscover(); return; }
-  if(window.homeMode==="crew"){ renderCrew(); return; }
   const st=captureViewState();
   const mine=ownerShows();
   const hero=$("#heroRoot"); if(hero) hero.innerHTML = mine.length ? heroHTML() : "";
@@ -2605,27 +2340,7 @@ async function browseByDay(dow){
     renderResults(media, `📅 Airing on ${DAYS[dow]}s · ${media.length} show${media.length>1?"s":""} (sub broadcast day):`);
   }catch(e){ box.innerHTML=`<div class="hint">Couldn't load ${DAYS[dow]} releases: ${esc(e.message)}.</div>`; }
 }
-// Browse Shows (TMDB TV) that air on a given weekday — the Shows-board equivalent of browseByDay.
-// TMDB has no airing-schedule API, but Discover filters TV by episode air date, so we query the
-// next occurrence of the chosen weekday. Filtered to English scripted series (drops anime + the
-// talk / news / reality / soap noise) so it surfaces what you'd actually track.
-async function browseByDayTv(dow){
-  const box=$("#results"); const seq=++searchSeq;
-  [...document.querySelectorAll("#dayChips .daychip")].forEach(b=>b.classList.toggle("active", Number(b.dataset.dow)===dow));
-  box.innerHTML=`<div style="text-align:center;padding:24px"><span class="spinner"></span><div class="hint" style="margin-top:8px">Finding shows that air on ${DAYS[dow]}…</div></div>`;
-  if(!tmdbReady()){ box.innerHTML=`<div class="hint">No TMDB key configured yet.</div>`; return; }
-  const d=new Date(); d.setHours(0,0,0,0);
-  d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7));   // next occurrence (today if it matches)
-  const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;   // local date (not UTC)
-  try{
-    const data=await tmdbGet(`/discover/tv?air_date.gte=${ds}&air_date.lte=${ds}&sort_by=popularity.desc&language=en-US&with_original_language=en&without_genres=16,10763,10764,10766,10767&page=1`);
-    if(seq!==searchSeq) return;
-    const media=(data.results||[]).map(x=>({...x, media_type:"tv"}));
-    if(!media.length){ box.innerHTML=`<div class="hint">No ${DAYS[dow]} shows found — try another day or 🔥 Trending.</div>`; return; }
-    renderResultsTv(media, `📅 Airing on ${DAYS[dow]}s · ${media.length} show${media.length>1?"s":""}:`);
-  }catch(e){ box.innerHTML=`<div class="hint">Couldn't load ${DAYS[dow]} shows: ${esc(e.message)}.</div>`; }
-}
-$("#dayChips").addEventListener("click",e=>{ const b=e.target.closest(".daychip"); if(!b) return; const dow=Number(b.dataset.dow); if(boardKind==="show") browseByDayTv(dow); else browseByDay(dow); });
+$("#dayChips").addEventListener("click",e=>{ const b=e.target.closest(".daychip"); if(!b) return; browseByDay(Number(b.dataset.dow)); });
 function renderResults(media, heading){
   const box=$("#results");
   const have=new Set(showsForUid(meId()).map(s=>String(s.anilistId)));   // only MY list counts as "added"
@@ -3213,7 +2928,7 @@ function applyBoardUI(){
   const h=document.querySelector("#addOverlay .modal h3"); if(h) h.textContent = boardKind==="movie" ? "Add a movie" : (boardKind==="show" ? "Add a show" : "Add an anime");
   const si=$("#searchInput"); if(si) si.placeholder = boardKind==="movie" ? "Search e.g. Dune, Oppenheimer…" : (boardKind==="show" ? "Search e.g. Stranger Things, The Bear…" : "Search e.g. Jujutsu Kaisen, One Piece…");
   const gr=document.querySelector("#addOverlay .genre-row"); if(gr) gr.style.display = tmdb?"none":"";
-  const dr=document.querySelector("#addOverlay .day-row"); if(dr) dr.style.display = (boardKind==="movie")?"none":"";   // browse-by-day: anime + shows (not movies)
+  const dr=document.querySelector("#addOverlay .day-row"); if(dr) dr.style.display = tmdb?"none":"";
   const rb=$("#refreshBtn"); if(rb) rb.title = tmdb?"Refresh from TMDB":"Refresh schedules from AniList";
   const ib=$("#importBtn"); if(ib) ib.style.display = tmdb?"none":"";   // import is AniList/MAL only
   const ff=$("#fmtFilter"); if(ff) ff.style.display = (boardKind==="anime")?"":"none";   // movie/series filter is anime-only
@@ -3289,8 +3004,6 @@ $("#profilesBar").addEventListener("click",e=>{
   const lf=$("#listFilter"); if(lf) lf.value=""; const sf=$("#statusFilter"); if(sf) sf.value="all";
   render();
 });
-// ⚡ Today / 📺 My List landing toggle
-$("#homeNav").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; setHomeMode(b.dataset.home); });
 document.addEventListener("click",e=>{ if(e.target.closest("#emptyLoginBtn")) openAuth(); });
 
 /* ----- Auth modal ----- */
@@ -3577,7 +3290,6 @@ function initSyncUI(){
   $("#genreSel").innerHTML='<option value="">🎭 All genres</option>'+GENRES.map(g=>`<option value="${g}">${g}</option>`).join("");
   applyBoardUI();
   initSyncUI();
-  window.homeMode="today"; document.body.classList.add("mode-today");   // open on the Today landing view (nav defaults to Today)
   $("#viewRoot").innerHTML=skeletonHTML();
   await reload();
   if(usingCloud && myUid && !myProfile){ pendingGuide=true; openProfile(); }   // logged in, no profile yet

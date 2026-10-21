@@ -10,7 +10,6 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 
 ## ✨ Features
 
-- **⚡ Home screen with Today / Discover / Crew** — a nav at the top drops you onto a **Today** landing screen (what's dropping today, what's up next, continue-watching, and dubs out now), a **🧭 Discover** screen (trending anime, new seasons of what you watch, and titles your crew likes that you don't track yet), and a **👥 Crew** screen (every member with a real taste-match % and per-board alignment bars — tap to open their list). The full board is still one tap away.
 - **🎌 Anime · 🍿 Shows · 🎬 Movies boards** — a toggle at the top switches between your anime (AniList), live-action/Western TV series, and movies — the last two from every service, powered by [TMDB](https://www.themoviedb.org). TV and movies are separate boards so films don't clutter your series list. Search any title, preview it, and track status, progress and ratings; currently-airing series get a next-episode countdown (with season · episode) and every card shows where to stream it. All three boards share your account, profiles and views.
 - **Auto schedule from [AniList](https://anilist.co)** — add a show and it pulls the air day, air time, and a live next-episode countdown automatically.
 - **Local timezones** — everyone sees air times converted to their own timezone from UTC.
@@ -29,7 +28,7 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 - **Delay-aware** — auto-re-syncs when a countdown elapses, shows an honest "expected…/checking" state, and offers a shared "delayed this week" flag that clears itself once the episode airs.
 - **Bulk import** from an AniList username (MyAnimeList via the AniList bridge — see notes).
 - **Genre browse, trending, search-as-you-type, filters & sorting.**
-- **Browse by release day** — in ＋ Add, tap a weekday to see everything airing that day. Works on **both the Anime board** (AniList) **and the 🍿 Shows board** (TMDB, English scripted series only — so it surfaces real shows and skips anime/news/reality/soaps/talk). Great for filling an empty slot.
+- **Browse by release day** — in ＋ Add anime, tap a weekday to see everything airing that day in your timezone (great for filling an empty slot).
 - **Ratings** with a per-show group average, **streaming links** (Crunchyroll/Netflix/etc.), **calendar (.ics) export**, and optional **browser notifications** ~1h before a show airs.
 - **Light/dark themes, per-user accent tint, and a mobile-friendly layout** (add to home screen for an app-like feel).
 
@@ -38,7 +37,7 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 ## 🧩 How it works
 
 - **Frontend:** one `index.html` (HTML + CSS + vanilla JS, no dependencies bundled — the Firebase SDK loads from Google's CDN).
-- **Anime data:** the public [AniList GraphQL API](https://docs.anilist.co) (no key required). AniList occasionally blocks cross-origin browser calls (returns 403 with no CORS headers), which would otherwise knock out the Anime board; WatchLog automatically falls back to relaying AniList through your Cloudflare Worker (`POST /anilist`) when that happens — see `Docs/Setup guide (AnimeSchedule dubs).md`.
+- **Anime data:** the public [AniList GraphQL API](https://docs.anilist.co) (no key required).
 - **Movie/TV data (Shows board):** [TMDB](https://www.themoviedb.org) via a free read token in `CONFIG.TMDB` — see `Docs/Setup guide (TMDB).md`.
 - **Storage & sync:** a Firebase **Firestore** database with live `onSnapshot` updates, and **Firebase Auth** (email/password) for accounts. The app ships the Firebase *web config* (apiKey etc.), which is designed to be public — access is governed by the Firestore security rules in `Firebase/firestore.rules`.
 
@@ -109,12 +108,6 @@ day ahead of time — so WatchLog figures it out two ways:
 Predicted dub days are estimates for the usual weekly cadence (purple in the
 calendar); sub airings from AniList are exact.
 
-A dub that's only just rolling out (e.g. a back-catalogue dub premiering now)
-pins to a day column in the weekly calendar only once you're **Watching** or
-**Caught up** on it, or you've set its dub day by hand — otherwise it sits in the
-**"Dub still releasing"** section so Plan-to-watch titles don't suddenly scatter
-across the week.
-
 ---
 
 ## ⚠️ Notes & limitations
@@ -130,4 +123,4 @@ Anime data from **[AniList](https://anilist.co)**. Movie & TV data from **[TMDB]
 
 ---
 
-_Last updated: 2026-10-21. Full change history in `CHANGELOG.md`._
+_Last updated: October 2026. Full change history in `CHANGELOG.md`._
