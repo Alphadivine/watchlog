@@ -848,6 +848,14 @@ const CONFIG = {
   ANIMESCHEDULE: {
     worker: "https://watchlog-dubs.quentinclayton643.workers.dev"   // Cloudflare Worker relaying AnimeSchedule dub data
   },
+  // AniList (the anime data source) is called directly from the browser. It sometimes
+  // blocks browser/CORS calls (returns 403 with no CORS headers), which knocks out the
+  // whole Anime board. As a fallback, WatchLog can relay AniList through the same Worker
+  // above (its POST /anilist endpoint). Leave `proxy` blank to auto-derive it from the
+  // ANIMESCHEDULE worker URL; set it explicitly to use a different Worker.
+  ANILIST: {
+    proxy: ""   // e.g. "https://watchlog-dubs.<you>.workers.dev/anilist"; blank = derive from ANIMESCHEDULE.worker
+  },
 };
 // Which shared board this page uses. Everyone on the same board sees the same list.
 // Add ?board=friends to the URL to use a different shared board.
@@ -857,8 +865,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.13a";
+const APP_VERSION = "2026.10.21a";
 const WHATS_NEW = [
+  { v:"2026.10.21a", title:"Anime board stays up when AniList has a wobble", items:[
+    "🛡️ <b>AniList fallback</b> — AniList sometimes blocks browser requests (a 403 that knocks out the whole Anime board). WatchLog now automatically reroutes through your own Cloudflare Worker when that happens, so anime keeps loading. It tries AniList directly first and only falls back when it has to — nothing to turn on.",
+    "📺 The 🍿 Shows &amp; 🎬 Movies boards (TMDB) were never affected; this just makes the Anime board as resilient.",
+  ]},
   { v:"2026.10.13a", title:"Browse Shows by day + tidier dub schedule", items:[
     "📅 <b>Browse Shows by release day</b> — the weekday chips in <b>＋ Add</b> now work on the <b>🍿 Shows</b> board too, not just anime. Tap Sun–Sat to see TV series airing that day (scripted English-language series, powered by TMDB). Movies don't have a weekly release day, so they don't get it.",
     "🎙️ <b>Cleaner weekly view</b> — an English dub that's just rolling out for something you've only marked <b>Plan to watch</b> no longer jumps into the weekly day columns. It now waits in the <b>🎙️ Dub still releasing</b> section until you move it to <b>Watching</b> (or set a dub day yourself). Shows you're actively watching still pin to their day as before.",
@@ -954,13 +966,54 @@ const WHATS_NEW = [
 
 /* ---------------- AniList ---------------- */
 const ANILIST = "https://graphql.anilist.co";
-async function aniQuery(query, variables){
-  const r = await fetch(ANILIST,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},
-    body:JSON.stringify({query,variables})});
-  if(!r.ok) throw new Error("AniList "+r.status);
-  const j = await r.json();
-  if(j.errors) throw new Error(j.errors[0].message);
+// Fallback relay: when the browser can't reach AniList directly (it periodically 403s
+// cross-origin browser calls, which otherwise kills the whole Anime board), route the
+// same query through our Cloudflare Worker's POST /anilist endpoint. Derived from the
+// AnimeSchedule worker URL unless CONFIG.ANILIST.proxy is set explicitly.
+function aniProxyUrl(){
+  const explicit=(CONFIG.ANILIST&&CONFIG.ANILIST.proxy||"").trim();
+  if(explicit) return explicit;
+  const base=(CONFIG.ANIMESCHEDULE&&CONFIG.ANIMESCHEDULE.worker||"").trim().replace(/\/+$/,"");
+  return base ? base+"/anilist" : "";
+}
+// Once a direct call fails at the network/CORS/edge layer, skip straight to the proxy for
+// a cooldown window so we don't pay the failed-direct latency on every call during an outage.
+let aniDirectDownUntil=0;
+const ANI_COOLDOWN=10*60*1000;   // 10 min, then re-probe direct
+async function aniPost(url, payload){
+  const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},
+    body:JSON.stringify(payload)});
+  if(!r.ok){ const err=new Error("AniList "+r.status); err.reached=false; throw err; }   // edge block / 5xx — proxy may help
+  const j=await r.json();
+  if(j.errors){ const err=new Error(j.errors[0].message); err.reached=true; throw err; } // AniList answered — proxy won't help
   return j.data;
+}
+async function aniQuery(query, variables){
+  const payload={query,variables};
+  const proxy=aniProxyUrl();
+  const directCooling=proxy && Date.now()<aniDirectDownUntil;
+  // Try direct first (unless we're in a cooldown and have a proxy to use).
+  if(!directCooling){
+    try{ const d=await aniPost(ANILIST,payload); aniDirectDownUntil=0; return d; }
+    catch(e){
+      // If AniList actually answered (a real GraphQL error), the proxy can't help — surface it.
+      // Only fall back when the call failed to reach AniList (network/CORS error or an edge 4xx/5xx).
+      if(e.reached || !proxy) throw e;
+      aniDirectDownUntil=Date.now()+ANI_COOLDOWN;
+      try{ console.warn("AniList direct failed ("+e.message+") — falling back to Worker proxy"); }catch(_){}
+    }
+  }
+  // Proxy path (either in cooldown, or direct just failed to reach AniList).
+  try{ return await aniPost(proxy,payload); }
+  catch(e2){
+    if(e2.reached) throw e2;             // proxy reached AniList and it returned a query error — real, surface it
+    // Proxy couldn't reach AniList either. If we skipped direct because of cooldown, give direct
+    // one more shot before giving up (the outage may have cleared mid-cooldown).
+    if(directCooling){
+      try{ const d=await aniPost(ANILIST,payload); aniDirectDownUntil=0; return d; }catch(_){}
+    }
+    throw new Error("AniList unreachable (direct + proxy): "+e2.message);
+  }
 }
 const SEARCH_Q = `query($s:String,$g:[String]){Page(perPage:16){media(search:$s,genre_in:$g,type:ANIME,sort:[SEARCH_MATCH,POPULARITY_DESC],isAdult:false){
   id title{romaji english} coverImage{medium} format status episodes seasonYear

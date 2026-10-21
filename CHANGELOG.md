@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-10 — AniList outage fallback via the Worker
+- **Problem:** AniList's GraphQL API periodically returns `403 Forbidden` (nginx edge) to
+  cross-origin browser requests, with no CORS headers on the response — so the browser's
+  preflight for the app's `POST` (Content-Type: application/json) fails and every AniList
+  call throws `TypeError: Failed to fetch`. This takes out the entire Anime board even though
+  AniList itself is up for server-side callers. Confirmed live from the deployed app: direct
+  `fetch` → `Failed to fetch`; `GET` → 403 nginx page; preflight `OPTIONS` → 204 with no
+  `Access-Control-Allow-Origin`. TMDB (Shows/Movies) unaffected. Widespread AniList-side issue,
+  not a WatchLog bug.
+- **Worker `POST /anilist` relay** — the existing `watchlog-dubs` Cloudflare Worker gains an
+  `/anilist` endpoint that forwards the GraphQL `{query,variables}` body to
+  `https://graphql.anilist.co` server-side with a real `User-Agent`, and returns AniList's JSON
+  with the CORS headers it omits. Nothing stored; locked to `ALLOWED_ORIGINS` like `/dubs`.
+  Allow-methods now `GET, POST, OPTIONS`; body capped at 20 KB.
+- **App auto-fallback** — `aniQuery()` tries AniList directly first; on a *reach* failure
+  (network/CORS error or an edge 4xx/5xx) it retries the same query through the Worker proxy and
+  enters a 10-min cooldown so later calls skip straight to the proxy during an outage, then
+  re-probe direct. A genuine GraphQL error (AniList actually answered) is surfaced as-is, no
+  wasteful fallback. Proxy URL is derived from `CONFIG.ANIMESCHEDULE.worker` + `/anilist`, or set
+  explicitly via the new `CONFIG.ANILIST.proxy`. Leave both blank to disable the fallback.
+- Verified: 8-scenario unit test of `aniQuery` (direct-OK, net-err→proxy, 403→proxy, both-fail,
+  cooldown-first, cooldown→direct-retry, explicit-URL, gql-error-no-fallback) and an 8-case Worker
+  harness (preflight, forward+UA, 405/400/403 guards, health, `/dubs` intact, 404) all pass.
+  The Cloudflare→AniList leg itself must be confirmed after redeploy (sandbox can't reach AniList).
+- App version → `2026.10.21a`, sw cache → `v6`.
+
 ## 2026-10 — Browse Shows by day + tidier dub schedule
 - **Browse Shows by release day** — the Sun–Sat chips in the Add flow now work on the 🍿 Shows
   board, not just anime. `browseByDayTv(dow)` queries TMDB `/discover/tv` with

@@ -1,0 +1,16 @@
+Browse Shows by release day; keep catch-up dubs out of the weekly grid
+
+- Shows board: the Add flow now has Sun–Sat release-day chips, like anime. Powered
+  by TMDB (discover/tv by episode air date), filtered to English scripted series so
+  it surfaces real shows (Slow Horses, Chicago P.D., Abbott Elementary) and skips
+  anime/news/reality/soaps/talk. Movies don't get it (no weekly release day).
+- Weekly view: an English dub that's just rolling out now only pins to a day column
+  when you're Watching/Caught up on it (or you set the dub day by hand). Catch-up
+  dubs for "Plan to watch" titles move to the "Dub still releasing" section instead
+  (fixes "As a Reincarnated Aristocrat" S1/S2 suddenly appearing under Sunday after
+  the dub premiered via AnimeSchedule).
+- App version 2026.10.13a; service-worker cache bumped to v5.
+- CHANGELOG updated
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Qw59YTPaNaVjkxf8EWA2MX
