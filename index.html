@@ -876,7 +876,7 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.21b";
+const APP_VERSION = "2026.10.21c";
 const WHATS_NEW = [
   { v:"2026.10.21b", title:"Heads-up banner when AniList is down", items:[
     "📡 <b>Outage notice</b> — if AniList (where the anime data comes from) is unreachable, a banner now appears at the top explaining that it's an AniList-side outage, that only the <b>Anime</b> board is affected, and that your <b>🍿 Shows</b> &amp; <b>🎬 Movies</b> boards are fine. It auto-clears the moment AniList comes back, and there's a <b>Retry now</b> button to check immediately.",
@@ -1063,7 +1063,7 @@ const DETAILS_Q = `query($id:Int){Media(id:$id,type:ANIME){
   nextAiringEpisode{airingAt episode} externalLinks{site url type} streamingEpisodes{title url site}}}`;
 const GENRES = ["Action","Adventure","Comedy","Drama","Fantasy","Horror","Mahou Shoujo","Mecha","Music","Mystery","Psychological","Romance","Sci-Fi","Slice of Life","Sports","Supernatural","Thriller"];
 const REFRESH_Q = `query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){
-  id status format episodes bannerImage nextAiringEpisode{airingAt timeUntilAiring episode}
+  id idMal status format episodes bannerImage nextAiringEpisode{airingAt timeUntilAiring episode}
   externalLinks{site url type} streamingEpisodes{title url site}
   relations{edges{relationType node{id type}}}}}}`;
 // Details for candidate SEQUELS (new seasons) of anime you track — to surface ones not on your list.
@@ -2519,9 +2519,33 @@ async function refreshLive(quiet){
     }
     buildFranchise();      // recompute series clusters from the freshest relations
     render();
+    backfillMalIds();      // persist each show's MyAnimeList id (prep for a future AniList-down fallback)
     scanNewSeasons().then(()=>{ if(boardKind==="anime") render(); });   // find sequels not on your list
     refreshDubSchedules();  // auto-fill dub dates from AnimeSchedule (if a Worker is configured)
   }catch(e){ console.warn("live refresh failed",e); if(!quiet) toast("Couldn't reach AniList — check connection"); }
+}
+// Phase 0 for a future secondary source (Jikan/MAL): AniList's REFRESH_Q now returns each
+// title's MyAnimeList id (idMal). Persist it onto any tracked anime that doesn't have one yet,
+// so that if AniList is ever unreachable we can look the show up on Jikan by its MAL id. One-time
+// per show (idMal never changes); chunked so a big list doesn't fire a burst of writes at once.
+let malBackfillRunning=false;
+async function backfillMalIds(){
+  if(malBackfillRunning) return;
+  const me=meId(); if(me==null) return;                     // only rows you own are writable
+  const todo=shows
+    .filter(s=>(s.kind||"anime")==="anime" && ownerOf(s)===me && !(s.mal_id||s.malId))
+    .map(s=>({s, mal:Number((live.get(Number(s.anilistId))||{}).idMal)||0}))
+    .filter(x=>x.mal>0);
+  if(!todo.length) return;
+  malBackfillRunning=true;
+  try{
+    for(let i=0;i<todo.length;i+=15){
+      await Promise.all(todo.slice(i,i+15).map(async ({s,mal})=>{
+        s.mal_id=mal; s.malId=mal;                           // reflect in memory immediately
+        try{ await store.update(s.id,{mal_id:mal}); }catch(_){}  // persist (one-time)
+      }));
+    }
+  } finally { malBackfillRunning=false; }
 }
 // Pull English-dub release info from AnimeSchedule (via your Worker) for the anime you
 // track, keyed by AniList ID. Optional: does nothing unless CONFIG.ANIMESCHEDULE.worker
@@ -2696,6 +2720,7 @@ function normalize(r){
   const isShow = r.kind==="show" || r.tmdb_id!=null || r.tmdbId!=null || r.media_type!=null;
   const base={...r, anilistId:(r.anilist_id!=null?r.anilist_id:r.anilistId), kind:isShow?"show":"anime"};
   if(isShow){ base.tmdbId=(r.tmdb_id!=null?r.tmdb_id:r.tmdbId); base.mediaType=(r.media_type||r.mediaType||"tv"); base.season=(r.season!=null?r.season:1); }
+  else { base.malId=(r.mal_id!=null?r.mal_id:(r.malId!=null?r.malId:null)); }   // MyAnimeList id (prep for Jikan fallback)
   return base;
 }
 // Copy a show you spotted on someone else's list onto your own (fresh progress).

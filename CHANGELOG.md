@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10 — Phase 0: capture each show's MyAnimeList id (fallback prep)
+- **Invisible prep** for a future secondary anime data source (Jikan/MAL) so the Anime board can
+  survive an AniList outage by querying a different provider, not just a different network path.
+  No user-facing behavior change.
+- `REFRESH_Q` now also requests `idMal`. `refreshLive()` calls a new `backfillMalIds()` that, for
+  every anime **you own** that doesn't yet have a stored MAL id, persists `mal_id` onto the row
+  (chunked 15 at a time; one-time per show since idMal never changes). `normalize()` exposes it as
+  `malId`. Over the first refresh or two after AniList is reachable again, all tracked anime get
+  their MAL id recorded, which is the bridge Jikan needs.
+- Only own rows are touched (Firestore rules reject writes to others' rows anyway), and it runs
+  only inside the successful-refresh path, so it does nothing while AniList is down.
+- Rules unchanged: `/shows` updates aren't field-restricted, so `mal_id` is allowed.
+- App version → `2026.10.21c`, sw cache → `v8`. (No What's-new entry — nothing user-visible.)
+
 ## 2026-10 — "AniList is down" notice banner
 - **User-facing outage banner** — when AniList can't be reached by any path, a red banner now
   appears at the top of the app explaining it's an AniList-side outage, that only the Anime board
