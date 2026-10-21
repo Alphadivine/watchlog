@@ -1,5 +1,97 @@
 # Changelog
 
+## 2026-10 — "AniList is down" notice banner
+- **User-facing outage banner** — when AniList can't be reached by any path, a red banner now
+  appears at the top of the app explaining it's an AniList-side outage, that only the Anime board
+  is affected (Shows/Movies via TMDB are fine), and that WatchLog keeps retrying. It auto-clears
+  the moment AniList responds again, and has a **Retry now** button plus a dismiss ✕.
+- **How it's driven** — `aniQuery()` now wraps the direct+proxy logic (renamed `aniQueryInner`):
+  any successful response calls `markAniList(true)`; a failure that exhausted every path (no
+  `.reached` flag) calls `markAniList(false)`. A genuine GraphQL query error (AniList answered)
+  does *not* trip the banner. Dismiss hides it until AniList recovers, then a later outage re-shows
+  it. `#anilistBanner` reuses the config-banner style with an `.alert` (red) variant.
+- **Context:** this follows the 2026-10-21 AniList lockdown where the Worker relay itself was
+  IP-banned by AniList ("manually blocked"). A proper second data source (Jikan/Kitsu) is scoped
+  in `claude/watchlog-secondary-anime-source-plan.md` but not yet built — this banner is the
+  interim "tell users what's going on" step.
+- App version → `2026.10.21b`, sw cache → `v7`.
+
+## 2026-10 — AniList outage fallback via the Worker
+- **Problem:** AniList's GraphQL API periodically returns `403 Forbidden` (nginx edge) to
+  cross-origin browser requests, with no CORS headers on the response — so the browser's
+  preflight for the app's `POST` (Content-Type: application/json) fails and every AniList
+  call throws `TypeError: Failed to fetch`. This takes out the entire Anime board even though
+  AniList itself is up for server-side callers. Confirmed live from the deployed app: direct
+  `fetch` → `Failed to fetch`; `GET` → 403 nginx page; preflight `OPTIONS` → 204 with no
+  `Access-Control-Allow-Origin`. TMDB (Shows/Movies) unaffected. Widespread AniList-side issue,
+  not a WatchLog bug.
+- **Worker `POST /anilist` relay** — the existing `watchlog-dubs` Cloudflare Worker gains an
+  `/anilist` endpoint that forwards the GraphQL `{query,variables}` body to
+  `https://graphql.anilist.co` server-side with a real `User-Agent`, and returns AniList's JSON
+  with the CORS headers it omits. Nothing stored; locked to `ALLOWED_ORIGINS` like `/dubs`.
+  Allow-methods now `GET, POST, OPTIONS`; body capped at 20 KB.
+- **App auto-fallback** — `aniQuery()` tries AniList directly first; on a *reach* failure
+  (network/CORS error or an edge 4xx/5xx) it retries the same query through the Worker proxy and
+  enters a 10-min cooldown so later calls skip straight to the proxy during an outage, then
+  re-probe direct. A genuine GraphQL error (AniList actually answered) is surfaced as-is, no
+  wasteful fallback. Proxy URL is derived from `CONFIG.ANIMESCHEDULE.worker` + `/anilist`, or set
+  explicitly via the new `CONFIG.ANILIST.proxy`. Leave both blank to disable the fallback.
+- Verified: 8-scenario unit test of `aniQuery` (direct-OK, net-err→proxy, 403→proxy, both-fail,
+  cooldown-first, cooldown→direct-retry, explicit-URL, gql-error-no-fallback) and an 8-case Worker
+  harness (preflight, forward+UA, 405/400/403 guards, health, `/dubs` intact, 404) all pass.
+  The Cloudflare→AniList leg itself must be confirmed after redeploy (sandbox can't reach AniList).
+- App version → `2026.10.21a`, sw cache → `v6`.
+
+## 2026-10 — Browse Shows by day + tidier dub schedule
+- **Browse Shows by release day** — the Sun–Sat chips in the Add flow now work on the 🍿 Shows
+  board, not just anime. `browseByDayTv(dow)` queries TMDB `/discover/tv` with
+  `air_date.gte=air_date.lte=<next weekday, local date>`, `with_original_language=en` and
+  `without_genres=16,10763,10764,10766,10767` (drops animation/news/reality/soap/talk) so it
+  surfaces scripted series (Slow Horses, Chicago P.D., Abbott Elementary…). The `#dayChips`
+  handler routes to `browseByDayTv` on the show board, `browseByDay` on anime. `applyBoardUI`
+  shows the `.day-row` for anime + shows, hides it only for Movies (no weekly release day).
+- **Dub schedule no longer clutters the weekly grid** — in `renderWeek`, a `slot.kind==="dub"`
+  title is only pinned to a day column when it's `Watching`/`Caught up` or has a manually-set dub
+  day (`slot.ds.source==="manual"`). Catch-up dubs for `Plan to watch` titles now go to the
+  "🎙️ Dub still releasing" section instead (fixes the Aristocrat S1/S2 "suddenly on Sunday" report
+  — the dub premiered Oct 11 via AnimeSchedule). Verified: Aristocrat S1/S2 move out, BLEACH
+  (Watching + manual day) stays pinned. App version → `2026.10.13a`, sw cache → `v5`.
+
+## 2026-10 — 🧭 Discover & 👥 Crew (redesign increment 2)
+- **Discover tab** — `renderDiscover()` on `#discoverRoot`. Shows **🔥 Trending anime**
+  (live AniList `TRENDING_Q`, deduped against your list with ✓/＋ badges), **🆕 new seasons**
+  of anime you track (reuses `newSeasonsList`/`seqCardHTML`), and **"Because your crew likes
+  these"** — titles a crew member tracks that you don't, ranked by how many of the crew track
+  them (`discCrewLikes()` via `showIdent`). Plus Search & add and 🎲 Pick-for-us shortcuts.
+- **Crew tab** — `renderCrew()` on `#crewRoot`. One card per other member with a **real
+  taste-match %** = Jaccard overlap of tracked `showIdent` sets (`tasteMatch()`/`jac()`), plus
+  per-board alignment bars (Anime/Shows/Movies, `identSet(uid,board)`), and a **"what the crew
+  is on right now"** rail of their Watching titles (`weekCard`). Tapping a card sets
+  `viewingUid` and jumps to My List (read-only), same path as the profile chips.
+- **4-way nav** — `#homeNav` is now ⚡ Today · 📺 My List · 🧭 Discover · 👥 Crew. `render()`
+  branches on `window.homeMode`; CSS `body.mode-discover`/`mode-crew` hide the board chrome and
+  show the matching root. App version → `2026.10.10b`, sw cache → `v4`.
+- Verified live against real shared data (Demon 20% / Matt 4% taste match, trending badges,
+  crew-likes, tap-through to a member's list).
+
+## 2026-10 — ⚡ Today home screen (redesign increment 1)
+- **New landing view** — WatchLog now opens on a **⚡ Today** screen that spans all
+  three boards at once, instead of dropping you straight onto a single board. A
+  **⚡ Today / 📺 My List** toggle at the top of `<main>` switches between it and the
+  existing per-board views; My List is unchanged (Weekly / List / Posters, filters,
+  sorting, Finished/Dropped, etc.).
+- **Sections:** **📅 Dropping today** (only titles whose actual sub/dub air moment
+  lands on today's calendar date — not merely "airs on this weekday", which previously
+  mis-listed shows already aired earlier in the week); falls back to **⏳ Up next**
+  (soonest airing) when nothing is due. Then **▶ Continue watching** (status =
+  Watching, up to 16) and **🎙️ Dub watch** (anime with a dub still releasing).
+  Recommendations and new-season callouts surface here too.
+- **Implementation:** reuses `weekCard()` so cards look and behave identically (tap →
+  details) to the weekly view. `render()` branches to `renderToday()` when
+  `window.homeMode === "today"`; the profiles bar stays visible so you can view a crew
+  member's Today. Verified live against real data (toggle both ways, card → detail,
+  the Dropping-today date filter).
+
 ## 2026-10 — Auto dub dates from AnimeSchedule
 - **Dub release info fills in automatically** — WatchLog can pull English-dub data
   (the weekly dub day, an estimated latest dub episode, and dub breaks) from
