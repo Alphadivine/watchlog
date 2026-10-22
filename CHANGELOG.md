@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10 — Auto "Caught up", Discover preview, duplicate-card fix
+- **Auto "Caught up" from dub progress** — new `autoDubCaughtUp()`: for your own anime that are
+  Watching/Caught up, if `progress >= dubLatest(aniId).ep` it sets **Caught up**; if a newer dub
+  lands ahead of you (`progress < latest dub`) it reverts to **Watching**. Only runs when a real
+  dubbed-episode count is known, only on your own rows, never touches Plan to watch/Finished/Dropped,
+  and is idempotent (writes only on a crossing). Wired into `bump`, `setDub`, `refreshLive`,
+  `refreshDubSchedules` and `reload`. Dry-run on the live data flipped 5 shows correctly, 0 wrong.
+- **Discover: read before adding** — tapping a trending poster now opens the existing preview modal
+  (synopsis, genres, rating, streaming links) with the ＋ Add button, instead of adding on first tap.
+  `discadd` handler calls `openPreview(m)`; poster badge changed from "＋ add" to "ⓘ details".
+- **Duplicate-card fix** — root cause: `buildFranchise()` only ran on a live refresh, so a just-added
+  season showed as a separate card from its franchise until the next refresh (and stayed split during
+  the AniList outage). Fix: `render()` now rebuilds the franchise map every time, so grouping is always
+  current. Also added a dup guard to `addShow()` (won't add a title already on your list). Verified:
+  one add = one row = one card; season grouping (Mushoku ×4, Skeleton Knight ×2) collapses correctly.
+- App version → `2026.10.22b`, sw cache → `v10`.
+
 ## 2026-10 — Fix blank cover art for titles with no "large" image
 - **Bug:** every anime cover is stored at AniList's `/cover/small/` size, and `hiRes()` upgrades it
   to `/cover/large/` for crispness. A handful of titles have no `large` variant on AniList's CDN

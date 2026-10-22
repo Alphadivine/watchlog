@@ -10,14 +10,14 @@ WatchLog is a single self-contained HTML file. No build step, no framework, no s
 
 ## ✨ Features
 
-- **⚡ Home screen with Today / Discover / Crew** — a nav at the top drops you onto a **Today** landing screen (what's dropping today, what's up next, continue-watching, and dubs out now), a **🧭 Discover** screen (trending anime, new seasons of what you watch, and titles your crew likes that you don't track yet), and a **👥 Crew** screen (every member with a real taste-match % and per-board alignment bars — tap to open their list). The full board is still one tap away.
+- **⚡ Home screen with Today / Discover / Crew** — a nav at the top drops you onto a **Today** landing screen (what's dropping today, what's up next, continue-watching, and dubs out now), a **🧭 Discover** screen (trending anime, new seasons of what you watch, and titles your crew likes that you don't track yet), and a **👥 Crew** screen (every member with a real taste-match % and per-board alignment bars — tap to open their list). The full board is still one tap away. In Discover, tap any title to **read its full details** (synopsis, genres, rating, where to stream) before adding it.
 - **🎌 Anime · 🍿 Shows · 🎬 Movies boards** — a toggle at the top switches between your anime (AniList), live-action/Western TV series, and movies — the last two from every service, powered by [TMDB](https://www.themoviedb.org). TV and movies are separate boards so films don't clutter your series list. Search any title, preview it, and track status, progress and ratings; currently-airing series get a next-episode countdown (with season · episode) and every card shows where to stream it. All three boards share your account, profiles and views.
 - **Auto schedule from [AniList](https://anilist.co)** — add a show and it pulls the air day, air time, and a live next-episode countdown automatically.
 - **Local timezones** — everyone sees air times converted to their own timezone from UTC.
 - **Three views** — a Sun→Sat weekly calendar, a detailed list, and a poster wall.
 - **Accounts & profiles** — Firebase email/password login (with a **Forgot password?** reset-by-email link); pick a display name, accent color, and an avatar: an emoji preset, a custom image URL, or an **anime character portrait** (browse a show's cast from AniList, Crunchyroll-style).
 - **Personal lists, shared space** — everyone has their own list with their own progress/status/rating/notes, and can view anyone else's list read-only. Tap **＋ Add to mine** to copy a show you spotted on a friend's list.
-- **Community dub tracking + predicted release day** — no public API exposes English dub dates, so the group tracks the latest dubbed episode with a shared, bumpable counter. WatchLog then **learns each show's dub weekday** from when the counter is bumped (or you can set it by hand in Edit) and shows the next dub on its expected day in the weekly calendar, with a countdown.
+- **Community dub tracking + predicted release day** — no public API exposes English dub dates, so the group tracks the latest dubbed episode with a shared, bumpable counter. WatchLog then **learns each show's dub weekday** from when the counter is bumped (or you can set it by hand in Edit) and shows the next dub on its expected day in the weekly calendar, with a countdown. When your episode count reaches the latest dubbed episode, the show **auto-marks itself "Caught up"** (and flips back to "Watching" when a newer dub drops ahead of you).
 - **Finished & Dropped sections** — shows you mark Finished or Dropped collapse into their own tucked-away sections instead of cluttering your active lineup.
 - **Watch-sync** — on shows you both track, each card shows where everyone is (e.g. "You · Ep 5 · Demon · Ep 4"), with an "in sync ✓" when matched.
 - **"Pick for us"** — a 🎲 toolbar button picks a random title from your Plan to watch when you can't decide.
@@ -131,4 +131,4 @@ Anime data from **[AniList](https://anilist.co)**. Movie & TV data from **[TMDB]
 
 ---
 
-_Last updated: 2026-10-21. Full change history in `CHANGELOG.md`._
+_Last updated: 2026-10-22. Full change history in `CHANGELOG.md`._

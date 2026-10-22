@@ -876,8 +876,13 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.22a";
+const APP_VERSION = "2026.10.22b";
 const WHATS_NEW = [
+  { v:"2026.10.22b", title:"Auto “Caught up” + read-before-add in Discover", items:[
+    "🏷️ <b>Auto “Caught up” on dubs</b> — when you’ve watched up to (or past) the latest <b>dubbed</b> episode, the show flips itself to <b>Caught up</b> automatically. When a new dub drops ahead of you, it flips back to <b>Watching</b>. Only touches anime you’re Watching/Caught up on — your Plan to watch, Finished and Dropped are left alone, and you can always override by hand.",
+    "🧭 <b>Read before you add</b> — tapping a title in <b>Discover</b> now opens its full details (synopsis, genres, rating, where to stream) first, with the <b>＋ Add</b> button right there — instead of adding on the first tap.",
+    "🗂️ <b>No more phantom duplicates</b> — a just-added season now groups into its series card immediately, instead of briefly showing as a separate “duplicate” until the next refresh.",
+  ]},
   { v:"2026.10.21b", title:"Heads-up banner when AniList is down", items:[
     "📡 <b>Outage notice</b> — if AniList (where the anime data comes from) is unreachable, a banner now appears at the top explaining that it's an AniList-side outage, that only the <b>Anime</b> board is affected, and that your <b>🍿 Shows</b> &amp; <b>🎬 Movies</b> boards are fine. It auto-clears the moment AniList comes back, and there's a <b>Retry now</b> button to check immediately.",
   ]},
@@ -2415,9 +2420,9 @@ function discPoster(m){
   const have=showsForUid(meId()).some(x=>String(x.anilistId)===String(m.id));
   const bg=(m.coverImage&&m.coverImage.medium)?`background-image:url('${esc(hiRes(m.coverImage.medium))}')`:"";
   const payload={id:m.id,title:t,cover:(m.coverImage&&m.coverImage.medium)||"",site_url:m.siteUrl,status:m.status};
-  return `<button class="poster" data-act="discadd" data-m='${esc(JSON.stringify(payload))}' style="${bg}" title="${esc(t)}">
+  return `<button class="poster" data-act="discadd" data-m='${esc(JSON.stringify(payload))}' style="${bg}" title="Tap to read about ${esc(t)}${have?" (already on your list)":" and add it"}">
     <span class="poster-grad"></span>
-    <span class="pcd ${have?"done":""}">${have?"✓ on list":"＋ add"}</span>
+    <span class="pcd ${have?"done":""}">${have?"✓ on list":"ⓘ details"}</span>
     <span class="poster-meta"><span class="pt">${esc(t)}</span></span></button>`;
 }
 // Titles a crew member tracks that I don't — ordered by how many of the crew track them.
@@ -2487,7 +2492,7 @@ window.renderCrew=function(){
 // Discover "add" posters and Crew "view list" cards (both rebuilt on each render, so delegate).
 document.addEventListener("click",e=>{
   const dc=e.target.closest('[data-act="discadd"]');
-  if(dc){ try{ const m=JSON.parse(dc.dataset.m); addShow(m); const b=dc.querySelector(".pcd"); if(b){ b.textContent="✓ on list"; b.classList.add("done"); } }catch(err){} return; }
+  if(dc){ try{ const m=JSON.parse(dc.dataset.m); openPreview(m); }catch(err){} return; }   // read synopsis first; add from the preview
   const vc=e.target.closest('[data-act="viewcrew"]');
   if(vc){ viewingUid=vc.dataset.uid; const sf=$("#statusFilter"); if(sf) sf.value="all"; statusFilter="all"; const lf=$("#listFilter"); if(lf) lf.value=""; listFilter=""; setHomeMode("mylist"); }
 });
@@ -2501,6 +2506,9 @@ function setHomeMode(m){
 }
 function render(){
   healCoversSoon();   // after this render settles, swap any missing /large/ covers to /medium/
+  buildFranchise();   // keep season-grouping current so a just-added season collapses into its
+                      // franchise immediately, instead of showing as a separate "duplicate" card
+                      // until the next live refresh (which was the cause of the Discover dupes).
   const ro=isReadOnly();
   const canEdit=loggedIn() && !ro;
   $("#fabAdd").style.display = (canEdit && shows.length) ? "block":"none";
@@ -2554,6 +2562,7 @@ async function refreshLive(quiet){
     buildFranchise();      // recompute series clusters from the freshest relations
     render();
     backfillMalIds();      // persist each show's MyAnimeList id (prep for a future AniList-down fallback)
+    autoDubCaughtUp();     // reconcile Watching/Caught up against the latest dub episode
     scanNewSeasons().then(()=>{ if(boardKind==="anime") render(); });   // find sequels not on your list
     refreshDubSchedules();  // auto-fill dub dates from AnimeSchedule (if a Worker is configured)
   }catch(e){ console.warn("live refresh failed",e); if(!quiet) toast("Couldn't reach AniList — check connection"); }
@@ -2601,7 +2610,7 @@ async function refreshDubSchedules(){
       const map=await r.json();
       Object.keys(map||{}).forEach(k=>{ if(map[k]){ asDub.set(Number(k),map[k]); changed=true; } });
     }
-    if(changed) render();
+    if(changed){ render(); autoDubCaughtUp(); }   // fresh dub episode counts may change caught-up status
   }catch(e){ console.warn("dub schedule fetch failed",e); }
   finally{ asDubFetching=false; }
 }
@@ -2632,6 +2641,7 @@ async function reload(){
     if(usingCloud && myUid) await claimLegacy();
     if(viewingUid==null) viewingUid = loggedIn() ? meId() : (allOwnerIds()[0]||null);
     render(); refreshLiveSoon(); refreshTmdbSoon(true);
+    autoDubCaughtUp();   // reconcile caught-up status from the community dub counter on load
   }catch(e){ console.error(e); toast("Load error: "+e.message); }
 }
 
@@ -2731,6 +2741,9 @@ function renderResults(media, heading){
 }
 async function addShow(m){
   if(!loggedIn()){ usingCloud?openAuth():openProfile(); return; }
+  // Guard against adding the same title twice (e.g. a double-tap, or re-tapping a Discover
+  // poster already on your list) — that would create a genuine duplicate row.
+  if(showsForUid(meId()).some(x=>(x.kind||"anime")==="anime" && String(x.anilistId)===String(m.id))){ toast("Already on your list"); return; }
   const owner = displayName(meId());   // display-name snapshot for fallback
   // A not-yet-aired anime defaults to "Plan to watch" (you can't be Watching it yet).
   const notYet = (m.status==="NOT_YET_RELEASED") || ((live.get(m.id)||{}).status==="NOT_YET_RELEASED");
@@ -2849,6 +2862,7 @@ async function bump(id,delta){
   s.progress=Math.max(0,before+delta); render();
   if(delta>0 && a.airedEps && before<a.airedEps && s.progress>=a.airedEps) confetti(); // caught up!
   try{ await store.update(id,{progress:s.progress}); }catch(e){ toast(saveErr(e)); }
+  autoDubCaughtUp();   // reaching the latest dub may flip you to "Caught up"
 }
 // Update the shared "latest dub episode" (writes to my row; display uses the group max)
 async function setDub(id,delta){
@@ -2861,6 +2875,33 @@ async function setDub(id,delta){
   if(delta>0){ const today=new Date().toISOString().slice(0,10); s.dub_date=today; patch.dub_date=today; }
   render();
   try{ await store.update(id,patch); }catch(e){ toast(saveErr(e)); }
+  autoDubCaughtUp();   // a new dub episode may change whether you're caught up
+}
+// Auto-advance dub status: when you've watched up to (or past) the latest DUBBED episode,
+// mark the show "Caught up"; when a newer dub drops ahead of you, flip it back to "Watching".
+// Scope: only your OWN anime, only between Watching <-> Caught up (never touches Plan to watch /
+// Finished / Dropped), and only when a real dub-episode count is known. Runs after progress or
+// dub changes and after refreshes; idempotent, so it only writes when the status actually crosses.
+let autoCaughtRunning=false;
+async function autoDubCaughtUp(){
+  if(autoCaughtRunning || !loggedIn()) return;
+  const me=meId(); if(me==null) return;
+  const updates=[];
+  showsForUid(me).forEach(s=>{
+    if((s.kind||"anime")!=="anime") return;
+    if(s.status!=="Watching" && s.status!=="Caught up") return;     // leave other statuses alone
+    const dl=dubLatest(s.anilistId);
+    if(!dl || !(Number(dl.ep)>0)) return;                           // need a known dubbed-episode count
+    const prog=Number(s.progress)||0, dub=Number(dl.ep);
+    if(prog>=dub && s.status==="Watching") updates.push({s, status:"Caught up"});
+    else if(prog<dub && s.status==="Caught up") updates.push({s, status:"Watching"});
+  });
+  if(!updates.length) return;
+  autoCaughtRunning=true;
+  try{
+    for(const u of updates){ u.s.status=u.status; try{ await store.update(u.s.id,{status:u.status}); }catch(_){} }
+    render();
+  } finally { autoCaughtRunning=false; }
 }
 const detailsCache=new Map();
 function capWord(s){ return s?s.charAt(0)+s.slice(1).toLowerCase():s; }
