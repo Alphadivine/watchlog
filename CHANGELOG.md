@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10 — Fix blank cover art for titles with no "large" image
+- **Bug:** every anime cover is stored at AniList's `/cover/small/` size, and `hiRes()` upgrades it
+  to `/cover/large/` for crispness. A handful of titles have no `large` variant on AniList's CDN
+  (only small + medium), so those cards rendered blank — e.g. "The Laid-Off Cheat-Granting Mage
+  Enjoys a Second Lease on Life" (anilistId 207329): `/cover/large/` → 404, `/cover/medium/` → OK.
+- **Fix — self-healing covers:** new `healCovers()` runs after every render (debounced via
+  `healCoversSoon()`), probes each `/cover/large/` URL once, and on failure swaps the element's
+  background to `/cover/medium/` (always present). Results cached in `_coverProbe`, so a known-bad
+  cover is swapped instantly on later renders (renders regenerate the large URL, which would
+  otherwise revert the fix). `<img>`-based covers (preview, avatar picker) get the same fallback via
+  a capture-phase `error` listener. No quality loss for the ~120 titles whose `large` exists.
+- App version → `2026.10.22a`, sw cache → `v9`. (No What's-new entry — it's a fix.)
+
 ## 2026-10 — Phase 0: capture each show's MyAnimeList id (fallback prep)
 - **Invisible prep** for a future secondary anime data source (Jikan/MAL) so the Anime board can
   survive an AniList outage by querying a different provider, not just a different network path.

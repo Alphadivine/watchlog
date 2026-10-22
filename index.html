@@ -876,7 +876,7 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.21c";
+const APP_VERSION = "2026.10.22a";
 const WHATS_NEW = [
   { v:"2026.10.21b", title:"Heads-up banner when AniList is down", items:[
     "📡 <b>Outage notice</b> — if AniList (where the anime data comes from) is unreachable, a banner now appears at the top explaining that it's an AniList-side outage, that only the <b>Anime</b> board is affected, and that your <b>🍿 Shows</b> &amp; <b>🎬 Movies</b> boards are fine. It auto-clears the moment AniList comes back, and there's a <b>Retry now</b> button to check immediately.",
@@ -1304,6 +1304,39 @@ function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">
 // are the low-res "small" (100px); swap to "large" (~460px) at display time so cards
 // stay crisp — no refetch or data change needed. (extraLarge isn't available for all.)
 function hiRes(url){ return (url||"").replace(/\/cover\/(small|medium)\//,"/cover/large/"); }
+// AniList doesn't generate a /cover/large/ image for every title (some have only small+medium),
+// so a cover upgraded by hiRes() can 404 and render a blank card. Self-heal: after each render,
+// probe any large covers we haven't seen; if large is missing, fall back to /medium/ (always
+// present). Results are cached, so a known-bad cover is swapped instantly on later renders
+// (renders would otherwise regenerate the large URL and revert the fix).
+const _coverProbe=new Map();   // large URL -> "pending" | "ok" | "bad"
+function toMedCover(u){ return u.replace("/cover/large/","/cover/medium/"); }
+function healCovers(){
+  document.querySelectorAll('[style*="/cover/large/"]').forEach(el=>{
+    const m=(el.getAttribute("style")||"").match(/(https:\/\/[^'")\s]+\/cover\/large\/[^'")\s]+)/);
+    if(!m) return;
+    const url=m[1], st=_coverProbe.get(url);
+    if(st==="bad"){ el.style.backgroundImage="url('"+toMedCover(url)+"')"; return; }
+    if(st) return;   // ok or pending — leave it
+    _coverProbe.set(url,"pending");
+    const probe=new Image();
+    probe.onload=()=>_coverProbe.set(url,"ok");
+    probe.onerror=()=>{ _coverProbe.set(url,"bad");
+      document.querySelectorAll('[style*="/cover/large/"]').forEach(e=>{ if((e.getAttribute("style")||"").includes(url)) e.style.backgroundImage="url('"+toMedCover(url)+"')"; });
+    };
+    probe.src=url;
+  });
+}
+let _healPending=false;
+function healCoversSoon(){ if(_healPending) return; _healPending=true; setTimeout(()=>{ _healPending=false; healCovers(); },50); }
+// Covers rendered as <img> (preview, avatar picker) can hit the same missing-large 404 — fall
+// back to /medium/ on error. Capture phase: <img> error events don't bubble.
+document.addEventListener("error", e=>{
+  const t=e.target;
+  if(t && t.tagName==="IMG" && typeof t.src==="string" && t.src.indexOf("/cover/large/")>-1 && !t.dataset.covFb){
+    t.dataset.covFb="1"; t.src=toMedCover(t.src);
+  }
+}, true);
 // Surface the real backend error so save failures are diagnosable, not just "failed".
 function saveErr(e){ console.error("WatchLog save error:",e); return "Save failed — "+((e&&(e.message||e.details||e.hint))||"see console (F12)"); }
 
@@ -2467,6 +2500,7 @@ function setHomeMode(m){
   render();
 }
 function render(){
+  healCoversSoon();   // after this render settles, swap any missing /large/ covers to /medium/
   const ro=isReadOnly();
   const canEdit=loggedIn() && !ro;
   $("#fabAdd").style.display = (canEdit && shows.length) ? "block":"none";
