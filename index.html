@@ -661,8 +661,8 @@
           <option value="">Auto — learn from when dubs drop</option>
           <option value="0">Sundays</option><option value="1">Mondays</option><option value="2">Tuesdays</option><option value="3">Wednesdays</option><option value="4">Thursdays</option><option value="5">Fridays</option><option value="6">Saturdays</option>
         </select>
-        <label class="duboff-row" title="Turn this on when a title is wrongly flagged as dubbed — e.g. the only dub is in another language. Hides all dub tracking for it (shared with your group).">
-          <input type="checkbox" id="editDubOff" /> <span>🚫 <b>No English dub</b> <span style="color:var(--faint);font-weight:400">— hide dub tracking (shared; fixes a wrongly-marked title)</span></span>
+        <label class="duboff-row" title="Turn this on when a title is wrongly flagged as dubbed — e.g. the only dub is in another language, or an announced dub hasn't really dropped. It ignores the auto dub data; if the subs are still airing the show moves to '⏳ Waiting for the dub to start'. Shared with your group.">
+          <input type="checkbox" id="editDubOff" /> <span>🚫 <b>No English dub out yet</b> <span style="color:var(--faint);font-weight:400">— ignore the auto dub data; shows under “⏳ Waiting for the dub” while subs air (shared)</span></span>
         </label>
         <label class="fld">Delay <span style="color:var(--faint);font-weight:400">(shared — clears itself once the episode airs)</span></label>
         <button type="button" class="btn ghost sm" id="editDelay" style="width:100%;justify-content:center">🚩 Mark this week's episode delayed</button>
@@ -884,8 +884,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.23b";
+const APP_VERSION = "2026.10.23c";
 const WHATS_NEW = [
+  { v:"2026.10.23c", title:"“No English dub” now means “waiting for the dub”", items:[
+    "🚫➡️⏳ <b>Tweaked “No English dub”</b> — when you mark a title whose dub info is wrong (or whose only dub is another language) and its subs are still airing, it now shows under <b>⏳ Waiting for the dub to start</b> (“Dub not announced yet”) instead of vanishing from the dub sections. So a show like <i>Tougen Anki: Nikko Kegon Falls Arc</i> lands where you’d expect.",
+  ]},
   { v:"2026.10.23b", title:"See what episode everyone's on, at a glance", items:[
     "▶ <b>Episode-you're-on, on every card</b> — cards now show <b>▶ Ep 5 / 12</b> (the episode you — or whoever's list you're viewing — are on, out of what's aired). It's on <b>Weekly, List and Posters</b>, so when you peek at Demon's or Matt's list you can instantly see how far along they are, instead of just when the next episode airs.",
   ]},
@@ -1480,10 +1483,13 @@ function dubLatest(aniId){
 function dubNotStarted(s){
   if((s.kind||"anime")!=="anime") return false;
   if(s.status==="Finished"||s.status==="Dropped") return false;
-  if(dubOff(s.anilistId)) return false;                        // marked "no English dub" → nothing to wait for
   const a=airInfo(s.anilistId);
   const subsOut=(Number(a.airedEps)>0)||a.dayIndex!=null||a.cd==="finished";
   if(!subsOut) return false;                                   // not aired yet → "Coming soon", not this
+  // "No English dub" (dub_off) means the auto dub data is wrong / no real English dub is out, so a
+  // subs-airing title belongs here as "waiting for the dub to start" rather than being hidden. The
+  // dub_off gate on dubLatest/asDubInfo still suppresses the (wrong) episode count and day below.
+  if(dubOff(s.anilistId)) return true;
   const dl=dubLatest(s.anilistId);
   if(dl && Number(dl.ep)>0) return false;                      // dub already has episodes out
   const as=asDubInfo(s.anilistId);

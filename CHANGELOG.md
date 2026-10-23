@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10 — "No English dub" routes to "Waiting for the dub"
+- Refined the `dub_off` ("No English dub") behavior: it no longer excludes a show from
+  `dubNotStarted()`. So a title whose auto dub data is wrong (non-English, or an announced dub
+  that hasn't really dropped) now shows under **⏳ Waiting for the dub to start** ("Dub not
+  announced yet") while its subs are airing, instead of being hidden as a plain sub card. The
+  dub_off gate on `dubLatest`/`asDubInfo`/`dubSchedule` still suppresses the wrong episode count
+  and dub day. Edit checkbox relabelled to "No English dub out yet". Verified on Tougen Anki:
+  Nikko Kegon Falls Arc (dub_off) → now `dubNotStarted=true`.
+- App version → `2026.10.23c`, sw cache → `v13`.
+
 ## 2026-10 — "Episode you're on" shown on every card
 - **New `onEpStr(s)`** → "Ep X / Y" (progress out of episodes aired so far, or the season total when
   finished; just "Ep X" if watched ahead of what's aired; "🎬 Movie" for films). Shown as `▶ Ep X / Y`
