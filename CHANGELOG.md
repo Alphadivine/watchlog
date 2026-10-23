@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10 — "Waiting for the dub" state + "No English dub" override
+- **"Waiting for the dub to start"** — new `dubNotStarted(s)`: anime with subs out (aired eps > 0 /
+  airing / finished sub run) but no English dub started — `dubLatest` null/0 and no past AnimeSchedule
+  premiere. New `weekSlot` kind `dubwait` → its own weekly section "⏳ Waiting for the dub to start"
+  (separate from "Dub still releasing"), plus an amber badge on the card via `dubStartHint(aniId)`
+  that shows a known future premiere ("Dub starts Nov 5"), a hand-set dub weekday, or "Dub not
+  announced yet". Verified: flags exactly the right 3 titles (incl. Dragon Ball Super: Beerus) and
+  excludes shows whose dub already premiered (Iceblade II, Returner's Magic S2).
+- **"No English dub" override** — group-wide `dub_off` flag (checkbox in Edit) for titles an upstream
+  source wrongly marks dubbed because the only dub is another language (e.g. Tougen Anki, which
+  AnimeSchedule reports as dubbed with inconsistent dates). `dubOff(aniId)` gates `dubLatest`,
+  `asDubInfo`, `dubSchedule`, `dubStatus` and `dubNotStarted`. Verified: Tougen Anki `ep 24 → null`.
+- **Non-English auto-detect filter** — `dubStatus` (AniList streamingEpisodes) now excludes listings
+  tagged with a non-English language (Spanish/Portuguese/German/… via `NON_EN_DUB`) unless also
+  marked English.
+- App version → `2026.10.23a`, sw cache → `v11`.
+
 ## 2026-10 — Auto "Caught up", Discover preview, duplicate-card fix
 - **Auto "Caught up" from dub progress** — new `autoDubCaughtUp()`: for your own anime that are
   Watching/Caught up, if `progress >= dubLatest(aniId).ep` it sets **Caught up**; if a newer dub

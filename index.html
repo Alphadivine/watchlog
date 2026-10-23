@@ -156,6 +156,7 @@
   .syncep{color:var(--text);font-weight:800}
   .syncok{font-size:11px;font-weight:700;color:var(--good)}
   .wk-cd.dubcd,.countdown.dubcd{color:#c9bcff;filter:none}
+  .wk-cd.dubwaitcd{color:#ffb454}  /* amber — waiting for the English dub to start */
   .countdown.dubcd .est,.wk-cd.dubcd .est{font-size:10px;opacity:.7;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
   .dub-legend{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--faint);margin:12px 2px 2px;line-height:1.4}
   .dub-legend .dubdot{width:10px;height:10px;border-radius:3px;background:#c9bcff;flex:0 0 auto;box-shadow:0 0 0 2px rgba(201,188,255,.18)}
@@ -396,6 +397,9 @@
   #genreSel{min-width:160px}
   /* Dub availability */
   .tag.dubtag{font-weight:800;border-color:transparent;background:linear-gradient(135deg,rgba(139,108,255,.32),rgba(34,224,198,.28));color:#dcd2ff}
+  .tag.dubwaittag{font-weight:800;border-color:rgba(255,180,84,.4);background:rgba(255,180,84,.12);color:#ffb454}
+  .duboff-row{display:flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:13px;cursor:pointer}
+  .duboff-row input{width:16px;height:16px;flex:none;accent-color:var(--amber)}
   .pdub{position:absolute;top:8px;left:8px;background:rgba(34,224,198,.9);color:#04201d;font-weight:800;font-size:10px;padding:3px 7px;border-radius:999px}
   .dubrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
   .dubrow .dublbl{font-size:12px;color:var(--muted);font-weight:700}
@@ -656,6 +660,9 @@
           <option value="">Auto — learn from when dubs drop</option>
           <option value="0">Sundays</option><option value="1">Mondays</option><option value="2">Tuesdays</option><option value="3">Wednesdays</option><option value="4">Thursdays</option><option value="5">Fridays</option><option value="6">Saturdays</option>
         </select>
+        <label class="duboff-row" title="Turn this on when a title is wrongly flagged as dubbed — e.g. the only dub is in another language. Hides all dub tracking for it (shared with your group).">
+          <input type="checkbox" id="editDubOff" /> <span>🚫 <b>No English dub</b> <span style="color:var(--faint);font-weight:400">— hide dub tracking (shared; fixes a wrongly-marked title)</span></span>
+        </label>
         <label class="fld">Delay <span style="color:var(--faint);font-weight:400">(shared — clears itself once the episode airs)</span></label>
         <button type="button" class="btn ghost sm" id="editDelay" style="width:100%;justify-content:center">🚩 Mark this week's episode delayed</button>
         </div>
@@ -876,8 +883,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.22b";
+const APP_VERSION = "2026.10.23a";
 const WHATS_NEW = [
+  { v:"2026.10.23a", title:"“Waiting for the dub” + fix wrongly-dubbed titles", items:[
+    "⏳ <b>Waiting for the dub to start</b> — a new weekly section (and an amber badge on the card) for anime whose <b>subs are out but the English dub hasn’t begun yet</b>. It’s separate from <b>🎙️ Dub still releasing</b> (those already have dubs out, you’re just waiting on this week’s). When AnimeSchedule knows the dub’s start date, the badge shows it (“Dub starts Nov 5”); otherwise “Dub not announced yet”.",
+    "🚫 <b>“No English dub” fix</b> — some titles get wrongly flagged as dubbed when the only dub is in another language (e.g. Tougen Anki). Open a show’s <b>Edit</b> and tick <b>No English dub</b> to hide all dub tracking for it — shared with the group, so one person’s correction fixes it for everyone. Non-English dub listings from AniList are now also filtered out automatically.",
+  ]},
   { v:"2026.10.22b", title:"Auto “Caught up” + read-before-add in Discover", items:[
     "🏷️ <b>Auto “Caught up” on dubs</b> — when you’ve watched up to (or past) the latest <b>dubbed</b> episode, the show flips itself to <b>Caught up</b> automatically. When a new dub drops ahead of you, it flips back to <b>Watching</b>. Only touches anime you’re Watching/Caught up on — your Plan to watch, Finished and Dropped are left alone, and you can always override by hand.",
     "🧭 <b>Read before you add</b> — tapping a title in <b>Discover</b> now opens its full details (synopsis, genres, rating, where to stream) first, with the <b>＋ Add</b> button right there — instead of adding on the first tap.",
@@ -1403,10 +1414,19 @@ function fmtCountdown(at){
    listings, which include separate "(English Dub)" entries once a dub is out.
    We read those to show whether a dub exists and the latest dubbed episode —
    fully automatic, no manual input.                                          */
+// Other-language dubs that AniList/Crunchyroll list with the word "dub" — we must NOT count
+// these as the English dub (e.g. "Episode 1 (Spanish Dub)").
+const NON_EN_DUB=/\b(spanish|espa(ñ|n)ol|latin|latino|castilian|portuguese|portugu(ê|e)s|brazil(ian)?|german|deutsch|french|fran(ç|c)ais|italian|italiano|hindi|tamil|telugu|korean|chinese|mandarin|cantonese|russian|arabic|thai|vietnamese|indonesian|turkish|polish|dutch|hungarian)\b/i;
 function dubStatus(aniId){
+  if(dubOff(aniId)) return null;
   const l=live.get(aniId);
   if(!l || !l.streamingEpisodes || !l.streamingEpisodes.length) return null;
-  const dubs=l.streamingEpisodes.filter(e=>/\bdub\b|dubbed|english dub/i.test(e.title||""));
+  const dubs=l.streamingEpisodes.filter(e=>{
+    const t=e.title||"";
+    if(!/\bdub(bed)?\b|english dub/i.test(t)) return false;
+    if(NON_EN_DUB.test(t) && !/english/i.test(t)) return false;   // a non-English dub listing
+    return true;
+  });
   if(!dubs.length) return null;
   let latestEp=0, latestUrl=null;
   dubs.forEach(e=>{ const m=(e.title||"").match(/(?:episode|ep|e)\s*0*(\d+)/i); const n=m?Number(m[1]):null;
@@ -1423,7 +1443,12 @@ function groupDub(aniId){
 // AnimeSchedule-sourced dub info for an anime (populated by refreshDubSchedules via the
 // optional Worker). Returns {weekday, time, latestEp, premiere, total, delayed} or null.
 // latestEp is 0 when a dub is announced but hasn't started yet.
+// Group-wide "this title has no English dub" correction. Set it once in a show's Edit panel
+// to fix a title an upstream source (AnimeSchedule / AniList) wrongly flags as dubbed — often
+// because the only "dub" that exists is in another language. Suppresses all dub tracking.
+function dubOff(aniId){ return watchersOf(aniId).some(s=>s && s.dub_off===true); }
 function asDubInfo(aniId){
+  if(dubOff(aniId)) return null;
   const d=asDub.get(Number(aniId)); if(!d || !d.dubbed) return null;
   const prem=parseDate(d.premier); if(!prem) return null;
   const slot=parseDate(d.dubTime)||prem;                 // weekly dub slot → local weekday/time
@@ -1438,10 +1463,38 @@ function asDubInfo(aniId){
 }
 // Best dub-episode signal: community bump first, then AnimeSchedule, then AniList auto-detect.
 function dubLatest(aniId){
+  if(dubOff(aniId)) return null;
   const g=groupDub(aniId); if(g) return {ep:g.ep, src:"group"};
   const as=asDubInfo(aniId); if(as && as.latestEp>0) return {ep:as.latestEp, src:"schedule"};
   const d=dubStatus(aniId); if(d) return {ep:d.latestEp, src:"auto"};
   return null;
+}
+// Subs are out but the English dub hasn't STARTED yet (no dubbed episode exists) — you're
+// waiting for the dub to begin. Distinct from waiting for next week's dub (which already has
+// episodes out). A dub that AnimeSchedule says already premiered counts as started, even if we
+// can't yet estimate its episode number.
+function dubNotStarted(s){
+  if((s.kind||"anime")!=="anime") return false;
+  if(s.status==="Finished"||s.status==="Dropped") return false;
+  if(dubOff(s.anilistId)) return false;                        // marked "no English dub" → nothing to wait for
+  const a=airInfo(s.anilistId);
+  const subsOut=(Number(a.airedEps)>0)||a.dayIndex!=null||a.cd==="finished";
+  if(!subsOut) return false;                                   // not aired yet → "Coming soon", not this
+  const dl=dubLatest(s.anilistId);
+  if(dl && Number(dl.ep)>0) return false;                      // dub already has episodes out
+  const as=asDubInfo(s.anilistId);
+  if(as && as.premiere && as.premiere.getTime()<=Date.now()) return false;  // dub already premiered
+  return true;
+}
+// Best "when does the dub start" hint for a not-yet-started dub: a known future premiere date,
+// else a hand-set dub weekday, else nothing announced.
+function dubStartHint(aniId){
+  const as=asDubInfo(aniId);
+  if(as && as.premiere && as.premiere.getTime()>Date.now())
+    return {txt:"Dub starts "+as.premiere.toLocaleDateString([], {month:"short",day:"numeric"}), when:as.premiere};
+  let md=null; watchersOf(aniId).forEach(s=>{ if(s.dub_day!=null && s.dub_day!==""){ const d=Number(s.dub_day); if(d>=0&&d<=6) md=d; } });
+  if(md!=null) return {txt:"Dub expected "+DAYS[md]+"s"};
+  return {txt:"Dub not announced yet"};
 }
 // Shared "this week's episode is delayed" flag: true if anyone in the group flagged
 // the current upcoming episode. Self-clears once AniList advances to a later episode.
@@ -1481,6 +1534,7 @@ function nextDubDate(dow, anchor){
    last recorded (dub_date, stamped automatically when the counter is bumped up).
    Returns {weekday, next(Date), source:"manual"|"auto", lastDate} or null if unknown. */
 function dubSchedule(aniId){
+  if(dubOff(aniId)) return null;
   const ws=watchersOf(aniId);
   let manualDay=null;
   ws.forEach(s=>{ if(s.dub_day!=null && s.dub_day!==""){ const d=Number(s.dub_day); if(d>=0&&d<=6) manualDay=d; }});
@@ -1519,6 +1573,7 @@ function weekSlot(s){
   if((s.kind||"anime")==="show") return weekSlotTv(s);
   if(s.status==="Finished") return {kind:"finished"};
   if(s.status==="Dropped") return {kind:"dropped"};
+  if(dubNotStarted(s)) return {kind:"dubwait"};   // subs out, English dub hasn't begun — its own section
   const ds=dubSchedule(s.anilistId);
   const a=airInfo(s.anilistId);
   if(ds && ds.source==="manual" && !dubComplete(s))
@@ -2051,7 +2106,8 @@ function showCard(s){
   else cd=`<div class="countdown done"><span class="spinner" style="width:12px;height:12px;border-width:2px"></span> loading…</div>`;
 
   const dub=dubLatest(s.anilistId);
-  const dubTag = dub ? `<span class="tag dubtag" title="Latest English dub episode out${dub.src==="group"?" (shared by your group)":dub.src==="schedule"?" (estimated from AnimeSchedule)":" (from AniList)"}">🎙️ Dub · Ep ${dub.ep} out</span>` : "";
+  const dubTag = dub ? `<span class="tag dubtag" title="Latest English dub episode out${dub.src==="group"?" (shared by your group)":dub.src==="schedule"?" (estimated from AnimeSchedule)":" (from AniList)"}">🎙️ Dub · Ep ${dub.ep} out</span>`
+    : (dubNotStarted(s) ? `<span class="tag dubwaittag" title="Subs are out but the English dub hasn't started yet">⏳ ${esc(dubStartHint(s.anilistId).txt)}</span>` : "");
   // When a show is placed on its dub day, suppress the sub air day/time so the card isn't self-contradictory.
   const dayTag = (slot.kind!=="dub" && a.dayName) ? `<span class="tag day">📆 ${a.dayName}</span>` : "";
   const timeTag = (slot.kind!=="dub" && a.time) ? `<span class="tag time" title="Shown in your local timezone (${esc(TZ_NAME)}). Converted from UTC.">🕒 ${a.time}${TZ_ABBR?" "+TZ_ABBR:""}</span>` : "";
@@ -2149,6 +2205,7 @@ function weekCard(s){
   const tot=totalEps(s.anilistId);
   let cd="";
   if(slot.kind==="dropped") cd=`<span class="wk-cd done">✖ dropped</span>`;
+  else if(slot.kind==="dubwait"){ const h=dubStartHint(s.anilistId); cd=`<span class="wk-cd dubwaitcd">⏳ ${esc(h.txt)}</span>`; }
   else if(slot.kind==="dub"){ const c=dubCdText(slot.ds);
     cd=`<span class="wk-cd dubcd">🎙️ ${c.txt==="today"?"today":c.txt}${(slot.ds.source==="auto"||slot.ds.source==="schedule")?" <span class='est'>est</span>":""}</span>`; }
   else if(delayed) cd=`<span class="wk-cd warn">⚠️ Delayed</span>`;
@@ -2162,7 +2219,8 @@ function weekCard(s){
   const today = slot.kind==="sub" ? isSameLocalDay(a.at) : (slot.kind==="dub" && isSameLocalDay(slot.at));
   const cover=s.cover?`style="background-image:url('${esc(hiRes(s.cover))}')"`:"";
   let epLine;
-  if(slot.kind==="dub") epLine = dub?`🎙️ Dub Ep ${dub.ep+1} expected`:`🎙️ Dub episode expected`;
+  if(slot.kind==="dubwait") epLine = `⏳ Awaiting English dub${a.nextEp?` &nbsp;·&nbsp; sub Ep ${a.nextEp}`:""}`;
+  else if(slot.kind==="dub") epLine = dub?`🎙️ Dub Ep ${dub.ep+1} expected`:`🎙️ Dub episode expected`;
   else if(a.nextEp) epLine = `Ep ${a.nextEp}${dub?` &nbsp;·&nbsp; 🎙️ Dub ${dub.ep}`:""}`;
   else epLine = dub?`🎙️ Dub Ep ${dub.ep} out`:"";
   const showTime = slot.kind==="sub" && a.time;
@@ -2185,11 +2243,12 @@ function renderWeek(){
   const today=new Date().getDay();
   const order=[0,1,2,3,4,5,6]; // Sun..Sat
   const byDay={}; order.forEach(d=>byDay[d]=[]);
-  const dubReleasing=[], onBreak=[], soon=[], ended=[], finished=[], dropped=[];
+  const dubReleasing=[], dubWait=[], onBreak=[], soon=[], ended=[], finished=[], dropped=[];
   list.forEach(s=>{
     const slot=weekSlot(s);
     if(slot.kind==="finished"){ finished.push(s); return; }
     if(slot.kind==="dropped"){ dropped.push(s); return; }
+    if(slot.kind==="dubwait"){ dubWait.push(s); return; }   // subs out, English dub hasn't begun
     if(slot.kind==="dub"){
       // Only pin to the weekly day grid if you're actively following it (or set the dub day by hand).
       // Catch-up dubs for titles you Plan to watch go to the "Dub still releasing" section, not the grid.
@@ -2220,6 +2279,10 @@ function renderWeek(){
       <div class="week-loose">${renderGrouped(nsNew, weekCard)}</div>`;
   }
   if(boardKind==="anime") html+=`<div class="dub-legend"><span class="dubdot"></span> Purple = estimated English-dub day (learned from when the dub was last bumped, or set by hand). Sub airings are exact.</div>`;
+  if(dubWait.length){
+    html+=`<h3 class="sec-h">⏳ Waiting for the dub to start <span class="sec-note">subs are out but the English dub hasn't begun yet — nothing to watch dubbed for these… yet</span></h3>
+      <div class="week-loose">${renderGrouped(dubWait, weekCard)}</div>`;
+  }
   if(dubReleasing.length){
     html+=`<h3 class="sec-h">🎙️ Dub still releasing <span class="sec-note">English dub rolling out weekly — move it to Watching (or set a dub day in Edit) to pin it to its day above</span></h3>
       <div class="week-loose">${renderGrouped(dubReleasing, weekCard)}</div>`;
@@ -3050,6 +3113,7 @@ function openEdit(id){
   editRating=s.rating||0; renderEditStars();
   const gd=dubLatest(s.anilistId); $("#editDubOut").value = gd? gd.ep : (s.dub_ep||"");
   $("#editDubDay").value = (s.dub_day!=null && s.dub_day!=="") ? String(s.dub_day) : "";
+  { const dz=$("#editDubOff"); if(dz) dz.checked = dubOff(s.anilistId); }
   const ai=airInfo(s.anilistId); editDelayEp = ai.cd==="upcoming"? (ai.nextEp||null) : null;
   editDelayOn = (s.delay_ep!=null && Number(s.delay_ep)===editDelayEp);
   updateDelayBtn();
@@ -3086,7 +3150,8 @@ async function saveEdit(){
   const newDub=(dubOut===""?null:Number(dubOut)||0);
   const prevEp=(dubLatest(s.anilistId)||{}).ep || 0;
   const seriesVal=$("#editSeries").value.trim();
-  const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating, series:(seriesVal||null), dub_ep:newDub, dub_day:(dubDayVal===""?null:Number(dubDayVal)), delay_ep:(editDelayOn && editDelayEp!=null)?editDelayEp:null};
+  const dubOffVal = (()=>{ const dz=$("#editDubOff"); return (dz && dz.checked) ? true : null; })();
+  const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating, series:(seriesVal||null), dub_ep:newDub, dub_day:(dubDayVal===""?null:Number(dubDayVal)), dub_off:dubOffVal, delay_ep:(editDelayOn && editDelayEp!=null)?editDelayEp:null};
   // If a newer dub episode was entered by hand, stamp today so the day can be learned.
   if(newDub!=null && newDub>prevEp) patch.dub_date=new Date().toISOString().slice(0,10);
   Object.assign(s,patch); render();
