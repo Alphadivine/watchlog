@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10 — "Episode you're on" shown on every card
+- **New `onEpStr(s)`** → "Ep X / Y" (progress out of episodes aired so far, or the season total when
+  finished; just "Ep X" if watched ahead of what's aired; "🎬 Movie" for films). Shown as `▶ Ep X / Y`
+  on **Weekly** (leads the episode line, replacing the old next-airing number — the countdown already
+  conveys timing), **List** (a new `progtag` in the card meta), and **Posters** (the meta line). Works
+  for your own list and anyone else's, so viewing a crew member's list shows where *they* are.
+- Verified on Demon's list: Weekly cards show "▶ Ep 1155 / 1180" (One Piece), "▶ Ep 6 / 17", "▶ Ep 1 / 9", etc.
+- App version → `2026.10.23b`, sw cache → `v12`.
+
 ## 2026-10 — "Waiting for the dub" state + "No English dub" override
 - **"Waiting for the dub to start"** — new `dubNotStarted(s)`: anime with subs out (aired eps > 0 /
   airing / finished sub run) but no English dub started — `dubLatest` null/0 and no past AnimeSchedule

@@ -276,6 +276,7 @@
   .airing-today{border-color:rgba(255,92,157,.55);box-shadow:0 6px 22px rgba(0,0,0,.35), 0 0 22px rgba(255,92,157,.25)}
   .tag.todaytag{background:rgba(255,92,157,.2);color:#ff9cc2;border-color:transparent;font-weight:800}
   .tag.behind{background:rgba(255,194,92,.16);color:var(--amber);border-color:transparent;font-weight:800}
+  .tag.progtag{background:linear-gradient(135deg,rgba(124,92,255,.28),rgba(34,224,198,.2));color:#e4deff;border-color:transparent;font-weight:800}
   /* Streaming pills */
   .watch{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
   .watchpill{font-size:11px;font-weight:800;padding:5px 10px;border-radius:9px;color:#fff;
@@ -883,8 +884,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.23a";
+const APP_VERSION = "2026.10.23b";
 const WHATS_NEW = [
+  { v:"2026.10.23b", title:"See what episode everyone's on, at a glance", items:[
+    "▶ <b>Episode-you're-on, on every card</b> — cards now show <b>▶ Ep 5 / 12</b> (the episode you — or whoever's list you're viewing — are on, out of what's aired). It's on <b>Weekly, List and Posters</b>, so when you peek at Demon's or Matt's list you can instantly see how far along they are, instead of just when the next episode airs.",
+  ]},
   { v:"2026.10.23a", title:"“Waiting for the dub” + fix wrongly-dubbed titles", items:[
     "⏳ <b>Waiting for the dub to start</b> — a new weekly section (and an amber badge on the card) for anime whose <b>subs are out but the English dub hasn’t begun yet</b>. It’s separate from <b>🎙️ Dub still releasing</b> (those already have dubs out, you’re just waiting on this week’s). When AnimeSchedule knows the dub’s start date, the badge shows it (“Dub starts Nov 5”); otherwise “Dub not announced yet”.",
     "🚫 <b>“No English dub” fix</b> — some titles get wrongly flagged as dubbed when the only dub is in another language (e.g. Tougen Anki). Open a show’s <b>Edit</b> and tick <b>No English dub</b> to hide all dub tracking for it — shared with the group, so one person’s correction fixes it for everyone. Non-English dub listings from AniList are now also filtered out automatically.",
@@ -2078,6 +2082,17 @@ function recsCalloutHTML(){
   if(!list.length) return "";
   return `<details class="finished-sec recs-sec" open><summary>📬 Recommended to you · ${list.length}</summary><div class="grid-list">${list.map(recCardHTML).join("")}</div></details>`;
 }
+// "Ep X / Y" — the episode this person is on, out of what's aired so far (or the season total
+// when finished). Used across Weekly / List / Posters so a card always shows where someone is,
+// not just when the next episode drops. Movies have no episodes.
+function onEpStr(s){
+  if(animeFmt(s)==="MOVIE") return "🎬 Movie";
+  const a=airInfo(s.anilistId);
+  const prog=s.progress||0;
+  let denom=(a.airedEps!=null && a.airedEps>0) ? a.airedEps : (a.total||null);
+  if(denom && denom<prog) denom=null;     // watched ahead of what's aired → just show the number
+  return `Ep ${prog}${denom?` / ${denom}`:""}`;
+}
 function showCard(s){
   if((s.kind||"anime")==="show") return showCardTv(s);
   const a = airInfo(s.anilistId);
@@ -2112,6 +2127,7 @@ function showCard(s){
   const dayTag = (slot.kind!=="dub" && a.dayName) ? `<span class="tag day">📆 ${a.dayName}</span>` : "";
   const timeTag = (slot.kind!=="dub" && a.time) ? `<span class="tag time" title="Shown in your local timezone (${esc(TZ_NAME)}). Converted from UTC.">🕒 ${a.time}${TZ_ABBR?" "+TZ_ABBR:""}</span>` : "";
   const airedLbl = a.airedEps!=null ? `${a.airedEps}${a.total?" / "+a.total:""} aired` : "";
+  const onEpTag = animeFmt(s)==="MOVIE" ? "" : `<span class="tag progtag" title="Episode ${esc(displayName(ownerOf(s)))} is on${a.airedEps!=null?" (of "+a.airedEps+" aired)":""}">▶ ${esc(onEpStr(s))}</span>`;
   const cover = s.cover ? `style="background-image:url('${esc(hiRes(s.cover))}')"` : "";
   const today = a.cd==="upcoming" && isSameLocalDay(a.at);
   // "behind by X" — aired episodes minus the episode you're on
@@ -2139,7 +2155,7 @@ function showCard(s){
     <div class="cover" ${cover}></div>
     <div class="body">
       <p class="title">${esc(s.title)}</p>
-      <div class="meta">${animeFmtTag(s)}${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}${airedLbl?`<span class="tag">📺 ${airedLbl}</span>`:""}</div>
+      <div class="meta">${onEpTag}${animeFmtTag(s)}${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}</div>
       ${cd}
       ${streaming}
       ${social}
@@ -2218,11 +2234,13 @@ function weekCard(s){
   else cd=`<span class="wk-cd done">on break</span>`;
   const today = slot.kind==="sub" ? isSameLocalDay(a.at) : (slot.kind==="dub" && isSameLocalDay(slot.at));
   const cover=s.cover?`style="background-image:url('${esc(hiRes(s.cover))}')"`:"";
+  // Always lead with where this person is (their progress), then add dub position. The countdown
+  // above already conveys when the next sub/dub drops, so the episode line is about "where are they".
+  const onEp = `▶ ${onEpStr(s)}`;
+  const dubBit = dub ? ` &nbsp;·&nbsp; 🎙️ Dub ${dub.ep}` : "";
   let epLine;
-  if(slot.kind==="dubwait") epLine = `⏳ Awaiting English dub${a.nextEp?` &nbsp;·&nbsp; sub Ep ${a.nextEp}`:""}`;
-  else if(slot.kind==="dub") epLine = dub?`🎙️ Dub Ep ${dub.ep+1} expected`:`🎙️ Dub episode expected`;
-  else if(a.nextEp) epLine = `Ep ${a.nextEp}${dub?` &nbsp;·&nbsp; 🎙️ Dub ${dub.ep}`:""}`;
-  else epLine = dub?`🎙️ Dub Ep ${dub.ep} out`:"";
+  if(slot.kind==="dubwait") epLine = onEp;                       // cd already says "dub not started"
+  else epLine = onEp + dubBit;
   const showTime = slot.kind==="sub" && a.time;
   const fmtMark = {MOVIE:"🎬",OVA:"📀",ONA:"💻",SPECIAL:"✨",MUSIC:"🎵"}[animeFmt(s)]||"";
   return `<button class="wcard ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" title="${esc(s.title)} — tap for details">
@@ -2360,7 +2378,7 @@ function posterCard(s){
     ${badge}
     ${today?`<span class="ptoday">🔴 Today</span>`:dub?`<span class="pdub" title="Latest dub episode out">🎙️ Dub ${dub.ep}</span>`:""}
     <span class="poster-meta"><span class="pt">${({MOVIE:"🎬 ",OVA:"📀 ",ONA:"💻 ",SPECIAL:"✨ ",MUSIC:"🎵 "}[animeFmt(s)]||"")}${esc(s.title)}</span>
-      <span class="ps">${a.dayName?esc(a.dayName):(a.cd==="finished"?"Finished":"")}${a.time?" · "+esc(a.time):""}</span></span>
+      <span class="ps">${animeFmt(s)==="MOVIE"?(a.cd==="finished"?"Watched":"Movie"):"▶ "+esc(onEpStr(s))}${(animeFmt(s)!=="MOVIE"&&a.dayName)?" · "+esc(a.dayName):""}</span></span>
   </button>`;
 }
 function renderPosters(){
