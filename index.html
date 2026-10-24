@@ -884,8 +884,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.23c";
+const APP_VERSION = "2026.10.24a";
 const WHATS_NEW = [
+  { v:"2026.10.24a", title:"Smarter “Up next” — the next thing you’ll actually watch", items:[
+    "⏭️ <b>“Up next” is now dub-aware and only features shows you’re following</b> — it picks the soonest upcoming <b>sub airing OR English-dub drop</b> among your <b>Watching / Caught up</b> titles, instead of the soonest sub across everything (which could surface a <b>Plan to watch</b> show you’re not even on). So it’ll show things like <b>BLEACH — Dub Ep 9 • Saturday</b>, not a sub-only title you haven’t started.",
+  ]},
   { v:"2026.10.23c", title:"“No English dub” now means “waiting for the dub”", items:[
     "🚫➡️⏳ <b>Tweaked “No English dub”</b> — when you mark a title whose dub info is wrong (or whose only dub is another language) and its subs are still airing, it now shows under <b>⏳ Waiting for the dub to start</b> (“Dub not announced yet”) instead of vanishing from the dub sections. So a show like <i>Tougen Anki: Nikko Kegon Falls Arc</i> lands where you’d expect.",
   ]},
@@ -2183,33 +2186,51 @@ function showCard(s){
       </div>
     </div></div>`;
 }
-// The soonest upcoming episode across all tracked shows, for the hero banner.
+// The soonest thing you'll actually watch next — among shows you're FOLLOWING (Watching / Caught up),
+// the nearest upcoming event, counting both the next SUB airing and the next DUB release. (A show you've
+// only got on Plan to watch isn't "up next".) Returns {s, a, at, kind:"sub"|"dub", ds?}.
 function nextUp(){
+  const now=Date.now();
   let best=null;
-  ownerShows().forEach(s=>{ if(!onBoard(s)) return; const a=infoOf(s);
-    if(a.cd==="upcoming" && a.at>Date.now() && (!best || a.at<best.a.at)) best={s,a}; });
+  ownerShows().forEach(s=>{
+    if(!onBoard(s)) return;
+    if(s.status!=="Watching" && s.status!=="Caught up") return;        // only shows you're following
+    const a=infoOf(s);
+    if(a.cd==="upcoming" && a.at>now && (!best || a.at<best.at)) best={s,a,at:a.at,kind:"sub"};
+    if((s.kind||"anime")==="anime"){                                   // anime also have a next dub drop
+      const ds=dubSchedule(s.anilistId);
+      if(ds && ds.next && !dubComplete(s)){ const dt=ds.next.getTime();
+        if(dt>now && (!best || dt<best.at)) best={s,a,at:dt,kind:"dub",ds}; }
+    }
+  });
   return best;
 }
 function heroHTML(){
   const n=nextUp(); if(!n) return "";
-  const f=fmtCountdown(n.a.at);
+  const f=fmtCountdown(n.at);
   const banner=n.a.banner||"";              // wide promo image (crisp) if AniList has one
   const cover=hiRes(n.s.cover)||"";          // else fall back to cover art…
   const img=banner||cover;
   const isCover=!banner && !!cover;          // …shown as a blurred backdrop so it reads clean, not blurry
-  const airingToday=isSameLocalDay(n.a.at);
-  let sub;
-  if((n.s.kind||"anime")==="show"){
+  const airingToday=isSameLocalDay(n.at);
+  let sub, kicker;
+  if(n.kind==="dub"){
+    const dl=dubLatest(n.s.anilistId);
+    sub = `🎙️ Dub Ep ${dl?dl.ep+1:1} • ${DAYS[n.ds.weekday]}${n.ds.source!=="manual"?" <span class='est'>est.</span>":""}`;
+    kicker = airingToday ? "🎙️ Dub today · Next up" : "🎙️ Next dub up";
+  } else if((n.s.kind||"anime")==="show"){
     sub = `${epLabelTv(n.a.nextEp)}${n.a.dayName?" • "+n.a.dayName:""}`;
-  }else{
+    kicker = airingToday ? "🔴 Airing today · Next up" : "⏭️ Next up";
+  } else {
     const dub=dubLatest(n.s.anilistId);
     sub = `Episode ${n.a.nextEp} • ${n.a.dayName}${n.a.time?" at "+n.a.time+(TZ_ABBR?" "+TZ_ABBR:""):""}${dub?" &nbsp;·&nbsp; 🎙️ Dub up to Ep "+dub.ep:""}`;
+    kicker = airingToday ? "🔴 Airing today · Next up" : "⏭️ Next up";
   }
   return `<div class="hero">
     ${img?`<div class="hero-img ${isCover?"hero-img-cv":""}" style="background-image:url('${esc(img)}')"></div>`:""}
     <div class="hero-shade"></div>
     <div class="hero-inner">
-      <div class="hero-kicker">${airingToday?"🔴 Airing today · Next up":"⏭️ Next up"}</div>
+      <div class="hero-kicker">${kicker}</div>
       <div class="hero-title">${esc(n.s.title)}</div>
       <div class="hero-sub">${sub}</div>
       <div class="hero-cd ${f.soon?"soon":""}">⏳ ${f.txt}</div>
@@ -2471,7 +2492,7 @@ window.renderToday = function(){
   const who=(window.viewingUid && typeof meId==="function" && viewingUid!==meId()) ? (esc(displayName(viewingUid))+"'s ") : "Your ";
   let html=`<h2 class="today-greet">⚡ ${who}day</h2>`;
   if(dueToday.length) html+=sec("📅 Dropping today","across all your boards",dueToday);
-  else if(upcoming.length) html+=sec("⏳ Up next","soonest to air",[upcoming[0]]);
+  else { const nu=(typeof nextUp==="function")?nextUp():null; if(nu) html+=sec("⏳ Up next","soonest you'll watch",[nu.s]); else if(upcoming.length) html+=sec("⏳ Up next","soonest to air",[upcoming[0]]); }
   if(watching.length) html+=sec("▶ Continue watching","in the middle of",watching.slice(0,16));
   if(dubWatch.length) html+=sec("🎙️ Dub watch","next English dubs",dubWatch.slice(0,16));
   try{ const r=recsCalloutHTML && recsCalloutHTML(); if(r) html+=`<div class="today-sec">${r}</div>`; }catch(e){}

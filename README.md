@@ -131,4 +131,4 @@ Anime data from **[AniList](https://anilist.co)**. Movie & TV data from **[TMDB]
 
 ---
 
-_Last updated: 2026-10-23. Full change history in `CHANGELOG.md`._
+_Last updated: 2026-10-24. Full change history in `CHANGELOG.md`._

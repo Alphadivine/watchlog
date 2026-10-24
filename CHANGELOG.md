@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10 — Dub-aware "Up next" banner
+- `nextUp()` rewritten: it now only considers shows you're **following** (Watching / Caught up) and
+  picks the soonest upcoming **event** — the next sub airing OR the next predicted dub drop
+  (`dubSchedule().next`, for anime with a dub still releasing). Previously it took the soonest sub
+  airing across *all* tracked shows, so a Plan-to-watch sub-only title (e.g. The Vermilion Mask)
+  could headline the banner. `heroHTML()` branches on the event kind — a dub event shows
+  "🎙️ Next dub up · Dub Ep N • <day>" and counts down to the dub date. The Today screen's "⏳ Up next"
+  now reuses `nextUp()` too. Verified on live data: pick changed from "The Vermilion Mask" (Plan to
+  watch) to "BLEACH … Dub Ep 9 • Saturday" (Caught up).
+- App version → `2026.10.24a`, sw cache → `v14`.
+
 ## 2026-10 — "No English dub" routes to "Waiting for the dub"
 - Refined the `dub_off` ("No English dub") behavior: it no longer excludes a show from
   `dubNotStarted()`. So a title whose auto dub data is wrong (non-English, or an announced dub
