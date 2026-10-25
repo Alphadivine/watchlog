@@ -884,8 +884,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.24a";
+const APP_VERSION = "2026.10.25a";
 const WHATS_NEW = [
+  { v:"2026.10.25a", title:"“Up next” now follows your dubs, not the subs", items:[
+    "🎙️ <b>“Up next” counts the dub you’ll actually watch</b> — for an anime that has an English dub, the banner now uses its next <b>dub</b> drop, not the sub that airs ahead of it. So a show you’re caught up on (dub-wise) won’t headline just because its sub airs tomorrow — it lines up by when the <b>dub</b> lands. Shows with no dub yet still use their airing.",
+  ]},
   { v:"2026.10.24a", title:"Smarter “Up next” — the next thing you’ll actually watch", items:[
     "⏭️ <b>“Up next” is now dub-aware and only features shows you’re following</b> — it picks the soonest upcoming <b>sub airing OR English-dub drop</b> among your <b>Watching / Caught up</b> titles, instead of the soonest sub across everything (which could surface a <b>Plan to watch</b> show you’re not even on). So it’ll show things like <b>BLEACH — Dub Ep 9 • Saturday</b>, not a sub-only title you haven’t started.",
   ]},
@@ -2187,21 +2190,35 @@ function showCard(s){
     </div></div>`;
 }
 // The soonest thing you'll actually watch next — among shows you're FOLLOWING (Watching / Caught up),
-// the nearest upcoming event, counting both the next SUB airing and the next DUB release. (A show you've
-// only got on Plan to watch isn't "up next".) Returns {s, a, at, kind:"sub"|"dub", ds?}.
+// the nearest upcoming episode you'd actually sit down for. Since this is a dub-first group, an anime
+// that HAS an English dub counts its next DUB drop (you watch the dub, not the sub that airs ahead of
+// it); a dub you've finished or that hasn't started yet means "nothing to watch yet". Only an anime
+// with no English dub at all — and any non-anime show — counts its next sub/episode airing. Plan to
+// watch / Dropped / Finished never count. Returns {s, a, at, kind:"sub"|"dub", ds?}.
 function nextUp(){
   const now=Date.now();
   let best=null;
   ownerShows().forEach(s=>{
     if(!onBoard(s)) return;
     if(s.status!=="Watching" && s.status!=="Caught up") return;        // only shows you're following
-    const a=infoOf(s);
-    if(a.cd==="upcoming" && a.at>now && (!best || a.at<best.at)) best={s,a,at:a.at,kind:"sub"};
-    if((s.kind||"anime")==="anime"){                                   // anime also have a next dub drop
-      const ds=dubSchedule(s.anilistId);
-      if(ds && ds.next && !dubComplete(s)){ const dt=ds.next.getTime();
-        if(dt>now && (!best || dt<best.at)) best={s,a,at:dt,kind:"dub",ds}; }
+    let at=null, kind=null, ds=null;
+    if((s.kind||"anime")==="anime"){
+      const dl=dubLatest(s.anilistId);
+      const hasDub = !!dl || dubNotStarted(s) || !!asDubInfo(s.anilistId);
+      if(hasDub){
+        // Dub-watched (or dub-pending) title → the next thing you'll watch is the next DUB drop.
+        const dsch=dubSchedule(s.anilistId);
+        if(dl && dsch && dsch.next && !dubComplete(s)){ const dt=dsch.next.getTime(); if(dt>now){ at=dt; kind="dub"; ds=dsch; } }
+        // else: dub complete, waiting to start, or this week's drop already passed → nothing to watch yet
+      }
     }
+    if(at==null && (s.kind||"anime")!=="anime"){                        // non-anime → next episode airing
+      const a=infoOf(s); if(a.cd==="upcoming" && a.at>now){ at=a.at; kind="sub"; }
+    }
+    if(at==null && (s.kind||"anime")==="anime" && !dubLatest(s.anilistId) && !dubNotStarted(s) && !asDubInfo(s.anilistId)){
+      const a=infoOf(s); if(a.cd==="upcoming" && a.at>now){ at=a.at; kind="sub"; }  // a rare sub-only anime
+    }
+    if(at!=null && (!best || at<best.at)) best={s, a:infoOf(s), at, kind, ds};
   });
   return best;
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10 — "Up next" prefers the dub, not the sub that airs ahead
+- Follow-up to the dub-aware `nextUp()`: for an anime that HAS an English dub, "Up next" now counts
+  only its next **dub** drop, not its sub airing (you watch the dub, so a sub episode airing ahead
+  of the dub shouldn't headline the banner). A dub that's complete or hasn't started counts as
+  "nothing to watch yet"; a sub airing is used only for an anime with no English dub at all, and for
+  non-anime shows. Fixes the banner showing BLEACH (sub ep 10, Mon) over ONE PIECE (dub ep 1157, Tue)
+  and the other dubs due before BLEACH's Saturday dub. Verified live: pick moved from BLEACH to ONE PIECE.
+- App version → `2026.10.25a`, sw cache → `v15`.
+
 ## 2026-10 — Dub-aware "Up next" banner
 - `nextUp()` rewritten: it now only considers shows you're **following** (Watching / Caught up) and
   picks the soonest upcoming **event** — the next sub airing OR the next predicted dub drop
