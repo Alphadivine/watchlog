@@ -1,16 +1,21 @@
-Add a "new dub to watch" badge when a dubbed episode drops ahead of you
+New "new dub to watch" badge, and un-mark Finished/Dropped by changing the episode
 
-- Cards now flip to a bright green "🆕 New dub · Ep N to watch" badge when the latest English
-  dub episode is ahead of your progress on a show you're following (Watching / Caught up) — and
-  clear the moment you bump your episode to it. Shows "🆕 K new dubs · Ep A–B" when you're several
-  behind. Added to Weekly (compact chip + green card glow), List (meta badge) and Posters (corner chip).
-- This pairs with the existing auto-caught-up: a card that read "Caught up" now both flips its
-  status pill back to "Watching" AND shows the new-dub badge, then both revert once you catch up.
+New-dub badge:
+- Cards now flip to a bright green "🆕 New dub · Ep N to watch" badge when the latest English dub
+  episode is ahead of your progress on a show you're following (Watching / Caught up) — and clear the
+  moment you bump your episode to it. Shows "🆕 K new dubs · Ep A–B" when you're several behind. Added
+  to Weekly (compact chip + green card glow), List (meta badge) and Posters (corner chip). Pairs with
+  the existing auto-caught-up, so a "Caught up" card both flips to "Watching" AND shows the badge.
 - "Behind" is now dub-based for dubbed anime: the old amber "▸ X behind" (which counted SUB episodes
   you don't watch) is replaced by the new-dub badge. Sub-only anime keep the sub-based "behind" count.
-- Gated to anime, non-movie, Watching/Caught up only. New helpers newDubInfo()/newDubBadgeHTML();
-  CSS .tag.newdub (pulse glow, reduced-motion aware), .wk-new, .pnew, .wcard.has-newdub.
-- App version 2026.10.28a; service-worker cache bumped to v16.
+
+Un-mark a mistaken Finished/Dropped:
+- Changing your episode count (＋/− stepper) on a show marked Finished or Dropped now moves it back to
+  Watching (clearing fin_seasons/fin_eps), then auto-settles to Caught up if you're up to the dub.
+  Any change triggers it; a toast confirms. Fixes a mis-tapped status without opening Edit. The Edit
+  panel's explicit status dropdown is left untouched.
+
+- App version 2026.10.28b; service-worker cache bumped to v17.
 - CHANGELOG updated
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>

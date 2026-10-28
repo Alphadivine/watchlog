@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10 — Changing the episode un-marks a mistaken "Finished"/"Dropped"
+- `bump()` (the ＋/− episode stepper) now clears a "done" status: if a show is **Finished** or
+  **Dropped** and you change your episode count, it's moved back to **Watching** (and
+  `fin_seasons`/`fin_eps` cleared), then `autoDubCaughtUp()` settles it to **Caught up** if you're
+  up to the latest dub. Any change (up or down) triggers it — you wouldn't touch the counter on
+  something you'd genuinely finished — so a mis-tapped Finished is fixed by just editing the episode,
+  no trip into Edit needed. A toast confirms the move. Confetti is suppressed on the un-mark.
+- Scope: the card stepper only (List view, anime + TV episode counter). The Edit panel still has an
+  explicit status dropdown, so changing the episode there leaves your chosen status alone.
+- App version → `2026.10.28b`, sw cache → `v17`.
+
 ## 2026-10 — "New dub to watch" badge + dub-based "behind"
 - New `newDubInfo(s)` / `newDubBadgeHTML(s)`: when the latest **dubbed** episode (`dubLatest().ep`)
   is ahead of a person's `progress` on a show they're **following** (Watching / Caught up), the card

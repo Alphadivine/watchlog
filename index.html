@@ -892,8 +892,11 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.28a";
+const APP_VERSION = "2026.10.28b";
 const WHATS_NEW = [
+  { v:"2026.10.28b", title:"Fix a mis-marked “Finished” just by changing the episode", items:[
+    "↩️ <b>Changing your episode count un-marks “Finished” / “Dropped”</b> — if you tapped <b>Finished</b> (or <b>Dropped</b>) by mistake, just hit <b>＋</b> or <b>−</b> on that show’s episode and it pops right back into your active list as <b>Watching</b> (then <b>Caught up</b> if you’re up to the latest dub). No need to dig into Edit to flip the status back — a quick toast tells you it moved.",
+  ]},
   { v:"2026.10.28a", title:"A “new dub to watch” badge when you fall behind the dub", items:[
     "🆕 <b>Cards now flip to a bright “New dub” badge when a dubbed episode you haven’t seen drops</b> — a show that reads <b>Caught up</b> changes to <b>🟢 Watching</b> with a green <b>🆕 New dub · Ep 12 to watch</b> badge the moment the next English dub is out, and clears itself the instant you bump your progress to it. It shows on <b>Weekly, List and Posters</b>, so you can tell at a glance which shows have a fresh dub waiting (and how many episodes, if you’re a few behind).",
     "🎙️ <b>“Behind” now counts your dubs, not the subs</b> — for anime you watch dubbed, the old amber “▸ X behind” (which counted <i>sub</i> episodes you don’t watch) is replaced by the new dub badge. Titles with no English dub still show the sub-based “behind” count.",
@@ -3031,9 +3034,21 @@ function syncRecBtn(){ const b=$("#recBtn"); if(b) b.style.display = canRecommen
 async function bump(id,delta){
   const s=shows.find(x=>x.id===id); if(!s) return;
   const a=airInfo(s.anilistId); const before=s.progress||0;
-  s.progress=Math.max(0,before+delta); render();
-  if(delta>0 && a.airedEps && before<a.airedEps && s.progress>=a.airedEps) confetti(); // caught up!
-  try{ await store.update(id,{progress:s.progress}); }catch(e){ toast(saveErr(e)); }
+  s.progress=Math.max(0,before+delta);
+  const patch={progress:s.progress};
+  // Changing your episode count on a show you'd marked Finished/Dropped means it wasn't really
+  // done — almost always a mis-tap. Pull it back into your active list so the "done" marker
+  // clears; autoDubCaughtUp() below then settles it to Caught up if you're up to the latest dub.
+  let unmarked="";
+  if(s.status==="Finished" || s.status==="Dropped"){
+    unmarked=s.status;
+    s.status="Watching"; patch.status="Watching";
+    s.fin_seasons=null; s.fin_eps=null; patch.fin_seasons=null; patch.fin_eps=null;
+  }
+  render();
+  if(!unmarked && delta>0 && a.airedEps && before<a.airedEps && s.progress>=a.airedEps) confetti(); // caught up!
+  try{ await store.update(id,patch); }catch(e){ toast(saveErr(e)); }
+  if(unmarked) toast("“"+s.title+"” was "+unmarked+" — moved back to Watching");
   autoDubCaughtUp();   // reaching the latest dub may flip you to "Caught up"
 }
 // Update the shared "latest dub episode" (writes to my row; display uses the group max)
