@@ -277,6 +277,11 @@
   .tag.todaytag{background:rgba(255,92,157,.2);color:#ff9cc2;border-color:transparent;font-weight:800}
   .tag.behind{background:rgba(255,194,92,.16);color:var(--amber);border-color:transparent;font-weight:800}
   .tag.progtag{background:linear-gradient(135deg,rgba(124,92,255,.28),rgba(34,224,198,.2));color:#e4deff;border-color:transparent;font-weight:800}
+  /* New dub to watch — bright, attention-grabbing (distinct from amber "behind" and purple dub) */
+  .tag.newdub{background:linear-gradient(135deg,#1fd67a,#13b85f);color:#042616;border-color:transparent;font-weight:900;
+    box-shadow:0 2px 10px rgba(31,214,122,.45);animation:newdubpulse 2.4s ease-in-out infinite}
+  @keyframes newdubpulse{0%,100%{box-shadow:0 2px 10px rgba(31,214,122,.40)}50%{box-shadow:0 2px 16px rgba(31,214,122,.75)}}
+  @media (prefers-reduced-motion:reduce){.tag.newdub{animation:none}}
   /* Streaming pills */
   .watch{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
   .watchpill{font-size:11px;font-weight:800;padding:5px 10px;border-radius:9px;color:#fff;
@@ -402,6 +407,9 @@
   .duboff-row{display:flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:13px;cursor:pointer}
   .duboff-row input{width:16px;height:16px;flex:none;accent-color:var(--amber)}
   .pdub{position:absolute;top:8px;left:8px;background:rgba(34,224,198,.9);color:#04201d;font-weight:800;font-size:10px;padding:3px 7px;border-radius:999px}
+  .pnew{position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#1fd67a,#13b85f);color:#042616;font-weight:900;font-size:10px;padding:3px 7px;border-radius:999px;box-shadow:0 2px 10px rgba(31,214,122,.6)}
+  .wk-new{background:linear-gradient(135deg,#1fd67a,#13b85f);color:#042616;font-weight:900;font-size:10px;padding:2px 6px;border-radius:999px;white-space:nowrap}
+  .wcard.has-newdub{border-color:rgba(31,214,122,.6);box-shadow:0 6px 22px rgba(0,0,0,.35),0 0 18px rgba(31,214,122,.28)}
   .dubrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
   .dubrow .dublbl{font-size:12px;color:var(--muted);font-weight:700}
   .btn.sm.addmine{padding:6px 11px;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border:0}
@@ -884,8 +892,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.25a";
+const APP_VERSION = "2026.10.28a";
 const WHATS_NEW = [
+  { v:"2026.10.28a", title:"A “new dub to watch” badge when you fall behind the dub", items:[
+    "🆕 <b>Cards now flip to a bright “New dub” badge when a dubbed episode you haven’t seen drops</b> — a show that reads <b>Caught up</b> changes to <b>🟢 Watching</b> with a green <b>🆕 New dub · Ep 12 to watch</b> badge the moment the next English dub is out, and clears itself the instant you bump your progress to it. It shows on <b>Weekly, List and Posters</b>, so you can tell at a glance which shows have a fresh dub waiting (and how many episodes, if you’re a few behind).",
+    "🎙️ <b>“Behind” now counts your dubs, not the subs</b> — for anime you watch dubbed, the old amber “▸ X behind” (which counted <i>sub</i> episodes you don’t watch) is replaced by the new dub badge. Titles with no English dub still show the sub-based “behind” count.",
+  ]},
   { v:"2026.10.25a", title:"“Up next” now follows your dubs, not the subs", items:[
     "🎙️ <b>“Up next” counts the dub you’ll actually watch</b> — for an anime that has an English dub, the banner now uses its next <b>dub</b> drop, not the sub that airs ahead of it. So a show you’re caught up on (dub-wise) won’t headline just because its sub airs tomorrow — it lines up by when the <b>dub</b> lands. Shows with no dub yet still use their airing.",
   ]},
@@ -2105,6 +2117,29 @@ function onEpStr(s){
   if(denom && denom<prog) denom=null;     // watched ahead of what's aired → just show the number
   return `Ep ${prog}${denom?` / ${denom}`:""}`;
 }
+// A newer English-dub episode is out than this person has watched → there's a NEW DUB to watch.
+// The dub-first analog of the sub-based "behind" badge: when the latest dubbed episode (community
+// bump / AnimeSchedule estimate / AniList) is ahead of their progress on a show they're following,
+// the "Caught up" card should flip to a clear "new episode to watch" state until they bump progress.
+// Returns {count, from, to} (from = next episode to watch, to = latest dub out) or null.
+function newDubInfo(s){
+  if((s.kind||"anime")!=="anime") return null;
+  if(animeFmt(s)==="MOVIE") return null;                       // episode framing doesn't fit films
+  if(s.status!=="Watching" && s.status!=="Caught up") return null;   // only shows you're following
+  const dl=dubLatest(s.anilistId); if(!dl || !(Number(dl.ep)>0)) return null;
+  const prog=Number(s.progress)||0;
+  const count=dl.ep-prog;
+  if(count<=0) return null;                                    // caught up to (or past) the dub
+  return {count, from:prog+1, to:dl.ep};
+}
+function newDubBadgeHTML(s){
+  const n=newDubInfo(s); if(!n) return "";
+  const txt = n.count===1 ? `🆕 New dub · Ep ${n.to} to watch`
+                          : `🆕 ${n.count} new dubs · Ep ${n.from}–${n.to}`;
+  const tip = n.count===1 ? "A new English dub episode is out and you haven't watched it yet — bump your progress once you've seen it"
+                          : `${n.count} new English dub episodes are out and unwatched — bump your progress once you've caught up`;
+  return `<span class="tag newdub" title="${tip}">${txt}</span>`;
+}
 function showCard(s){
   if((s.kind||"anime")==="show") return showCardTv(s);
   const a = airInfo(s.anilistId);
@@ -2142,8 +2177,12 @@ function showCard(s){
   const onEpTag = animeFmt(s)==="MOVIE" ? "" : `<span class="tag progtag" title="Episode ${esc(displayName(ownerOf(s)))} is on${a.airedEps!=null?" (of "+a.airedEps+" aired)":""}">▶ ${esc(onEpStr(s))}</span>`;
   const cover = s.cover ? `style="background-image:url('${esc(hiRes(s.cover))}')"` : "";
   const today = a.cd==="upcoming" && isSameLocalDay(a.at);
-  // "behind by X" — aired episodes minus the episode you're on
-  const behind = (a.airedEps!=null && (s.progress||0) < a.airedEps) ? a.airedEps-(s.progress||0) : 0;
+  // New-dub badge — the dub-first signal that a new dubbed episode is out and unwatched.
+  const newDubBadge = newDubBadgeHTML(s);
+  // "behind by X" (SUB-based) — only for anime with NO English dub; for a dubbed title the
+  // new-dub badge above is the catch-up signal (subs you don't watch would just be noise).
+  const hasDubSignal = !!dubLatest(s.anilistId) || dubNotStarted(s) || !!asDubInfo(s.anilistId);
+  const behind = (!hasDubSignal && a.airedEps!=null && (s.progress||0) < a.airedEps) ? a.airedEps-(s.progress||0) : 0;
   const behindBadge = behind>0 ? `<span class="tag behind" title="You're ${behind} episode${behind>1?"s":""} behind">▸ ${behind} behind</span>` : "";
   const todayBadge = today ? `<span class="tag todaytag">🔴 Today</span>` : "";
   const banner = (a.banner) ? `<div class="banner-bg" style="background-image:url('${esc(a.banner)}')"></div>` : "";
@@ -2167,7 +2206,7 @@ function showCard(s){
     <div class="cover" ${cover}></div>
     <div class="body">
       <p class="title">${esc(s.title)}</p>
-      <div class="meta">${onEpTag}${animeFmtTag(s)}${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}</div>
+      <div class="meta">${onEpTag}${newDubBadge}${animeFmtTag(s)}${delayed?`<span class="tag delaytag">⚠️ Delayed</span>`:""}${dubTag}${todayBadge}${dayTag}${timeTag}${behindBadge}</div>
       ${cd}
       ${streaming}
       ${social}
@@ -2261,6 +2300,7 @@ function weekCard(s){
   const now=Date.now();
   const delayed=isDelayed(s.anilistId);
   const dub=dubLatest(s.anilistId);
+  const nd=newDubInfo(s);
   const slot=weekSlot(s);
   const tot=totalEps(s.anilistId);
   let cd="";
@@ -2287,12 +2327,13 @@ function weekCard(s){
   else epLine = onEp + dubBit;
   const showTime = slot.kind==="sub" && a.time;
   const fmtMark = {MOVIE:"🎬",OVA:"📀",ONA:"💻",SPECIAL:"✨",MUSIC:"🎵"}[animeFmt(s)]||"";
-  return `<button class="wcard ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" title="${esc(s.title)} — tap for details">
+  const newChip = nd ? `<span class="wk-new" title="A new English dub episode is out and unwatched">🆕 ${nd.count>1?nd.count+" new dubs":"Ep "+nd.to}</span>` : "";
+  return `<button class="wcard ${today?"airing-today":""} ${nd?"has-newdub":""}" data-act="edit" data-id="${s.id}" title="${esc(s.title)} — tap for details">
     <span class="statusdot ${statusClass(s.status)}">${esc(s.status)}</span>
     <div class="wcover" ${cover}></div>
     <div class="wbody">
       <div class="wtitle">${fmtMark?fmtMark+" ":""}${esc(s.title)}</div>
-      <div class="wmeta">${showTime?`<span class="wk-time">🕒 ${esc(a.time)}</span>`:""}${cd}</div>
+      <div class="wmeta">${showTime?`<span class="wk-time">🕒 ${esc(a.time)}</span>`:""}${cd}${newChip}</div>
       ${epLine?`<div class="wep">${epLine}</div>`:""}
     </div>
   </button>`;
@@ -2412,15 +2453,21 @@ function posterCard(s){
   if((s.kind||"anime")==="show") return posterCardTv(s);
   const a=airInfo(s.anilistId);
   const dub=dubLatest(s.anilistId);
+  const nd=newDubInfo(s);
   let badge="";
   if(a.cd==="upcoming"){ const f=fmtCountdown(a.at); badge=`<span class="pcd ${f.soon?"soon":""}">${f.txt}</span>`; }
   else if(a.cd==="finished") badge=`<span class="pcd done">done</span>`;
   const bg=s.cover?`background-image:url('${esc(hiRes(s.cover))}')`:"";
   const today=a.cd==="upcoming"&&isSameLocalDay(a.at);
-  return `<button class="poster ${today?"airing-today":""}" data-act="edit" data-id="${s.id}" style="${bg}" title="${esc(s.title)}">
+  // A new dub to watch takes the corner chip (it's the most actionable thing), ahead of the
+  // plain "latest dub" chip; "airing today" (sub) still wins only when there's no new dub waiting.
+  const cornerChip = nd ? `<span class="pnew" title="New English dub episode to watch">🆕 Dub ${nd.to}</span>`
+    : today ? `<span class="ptoday">🔴 Today</span>`
+    : dub ? `<span class="pdub" title="Latest dub episode out">🎙️ Dub ${dub.ep}</span>` : "";
+  return `<button class="poster ${today?"airing-today":""} ${nd?"has-newdub":""}" data-act="edit" data-id="${s.id}" style="${bg}" title="${esc(s.title)}">
     <span class="poster-grad"></span>
     ${badge}
-    ${today?`<span class="ptoday">🔴 Today</span>`:dub?`<span class="pdub" title="Latest dub episode out">🎙️ Dub ${dub.ep}</span>`:""}
+    ${cornerChip}
     <span class="poster-meta"><span class="pt">${({MOVIE:"🎬 ",OVA:"📀 ",ONA:"💻 ",SPECIAL:"✨ ",MUSIC:"🎵 "}[animeFmt(s)]||"")}${esc(s.title)}</span>
       <span class="ps">${animeFmt(s)==="MOVIE"?(a.cd==="finished"?"Watched":"Movie"):"▶ "+esc(onEpStr(s))}${(animeFmt(s)!=="MOVIE"&&a.dayName)?" · "+esc(a.dayName):""}</span></span>
   </button>`;

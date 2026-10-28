@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10 — "New dub to watch" badge + dub-based "behind"
+- New `newDubInfo(s)` / `newDubBadgeHTML(s)`: when the latest **dubbed** episode (`dubLatest().ep`)
+  is ahead of a person's `progress` on a show they're **following** (Watching / Caught up), the card
+  now surfaces a bright green **🆕 New dub · Ep N to watch** badge (or **🆕 K new dubs · Ep A–B** when
+  several behind). It clears the instant `progress` reaches the dub. This pairs with the existing
+  `autoDubCaughtUp()`, which already flips **Caught up → Watching** when a newer dub drops — so a card
+  that read "Caught up" now both flips its status pill *and* shows the new-dub badge, then both revert
+  once you bump your episode. Added to **weekCard** (compact `🆕 Ep N` chip + green card glow),
+  **showCard** (meta-row badge) and **posterCard** (corner `🆕 Dub N` chip, taking priority over the
+  plain dub chip). Gated to anime, non-movie, Watching/Caught up only.
+- **Dub-based "behind" for dubbed anime:** `showCard`'s amber "▸ X behind" badge (which counted *sub*
+  episodes) is now suppressed for any title that has an English dub signal (`dubLatest` / `asDubInfo` /
+  `dubNotStarted`) — the new-dub badge is the catch-up cue there instead. Sub-only anime keep the
+  original sub-based "behind" count.
+- CSS: `.tag.newdub` (green gradient + pulse glow, `prefers-reduced-motion` aware), `.wk-new`, `.pnew`,
+  `.wcard.has-newdub` (green border glow).
+- App version → `2026.10.28a`, sw cache → `v16`.
+
 ## 2026-10 — "Up next" prefers the dub, not the sub that airs ahead
 - Follow-up to the dub-aware `nextUp()`: for an anime that HAS an English dub, "Up next" now counts
   only its next **dub** drop, not its sub airing (you watch the dub, so a sub episode airing ahead

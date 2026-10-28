@@ -1,15 +1,16 @@
-Browse Shows by release day; keep catch-up dubs out of the weekly grid
+Add a "new dub to watch" badge when a dubbed episode drops ahead of you
 
-- Shows board: the Add flow now has Sun–Sat release-day chips, like anime. Powered
-  by TMDB (discover/tv by episode air date), filtered to English scripted series so
-  it surfaces real shows (Slow Horses, Chicago P.D., Abbott Elementary) and skips
-  anime/news/reality/soaps/talk. Movies don't get it (no weekly release day).
-- Weekly view: an English dub that's just rolling out now only pins to a day column
-  when you're Watching/Caught up on it (or you set the dub day by hand). Catch-up
-  dubs for "Plan to watch" titles move to the "Dub still releasing" section instead
-  (fixes "As a Reincarnated Aristocrat" S1/S2 suddenly appearing under Sunday after
-  the dub premiered via AnimeSchedule).
-- App version 2026.10.13a; service-worker cache bumped to v5.
+- Cards now flip to a bright green "🆕 New dub · Ep N to watch" badge when the latest English
+  dub episode is ahead of your progress on a show you're following (Watching / Caught up) — and
+  clear the moment you bump your episode to it. Shows "🆕 K new dubs · Ep A–B" when you're several
+  behind. Added to Weekly (compact chip + green card glow), List (meta badge) and Posters (corner chip).
+- This pairs with the existing auto-caught-up: a card that read "Caught up" now both flips its
+  status pill back to "Watching" AND shows the new-dub badge, then both revert once you catch up.
+- "Behind" is now dub-based for dubbed anime: the old amber "▸ X behind" (which counted SUB episodes
+  you don't watch) is replaced by the new-dub badge. Sub-only anime keep the sub-based "behind" count.
+- Gated to anime, non-movie, Watching/Caught up only. New helpers newDubInfo()/newDubBadgeHTML();
+  CSS .tag.newdub (pulse glow, reduced-motion aware), .wk-new, .pnew, .wcard.has-newdub.
+- App version 2026.10.28a; service-worker cache bumped to v16.
 - CHANGELOG updated
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
