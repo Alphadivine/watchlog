@@ -1,21 +1,16 @@
-New "new dub to watch" badge, and un-mark Finished/Dropped by changing the episode
+Add a separate "Dub watched" counter so "On ep" ahead no longer fakes "Caught up"
 
-New-dub badge:
-- Cards now flip to a bright green "🆕 New dub · Ep N to watch" badge when the latest English dub
-  episode is ahead of your progress on a show you're following (Watching / Caught up) — and clear the
-  moment you bump your episode to it. Shows "🆕 K new dubs · Ep A–B" when you're several behind. Added
-  to Weekly (compact chip + green card glow), List (meta badge) and Posters (corner chip). Pairs with
-  the existing auto-caught-up, so a "Caught up" card both flips to "Watching" AND shows the badge.
-- "Behind" is now dub-based for dubbed anime: the old amber "▸ X behind" (which counted SUB episodes
-  you don't watch) is replaced by the new-dub badge. Sub-only anime keep the sub-based "behind" count.
-
-Un-mark a mistaken Finished/Dropped:
-- Changing your episode count (＋/− stepper) on a show marked Finished or Dropped now moves it back to
-  Watching (clearing fin_seasons/fin_eps), then auto-settles to Caught up if you're up to the dub.
-  Any change triggers it; a toast confirms. Fixes a mis-tapped status without opening Edit. The Edit
-  panel's explicit status dropdown is left untouched.
-
-- App version 2026.10.28b; service-worker cache bumped to v17.
+- New per-user field dub_seen + dubSeen(s): how many DUBBED episodes you've actually watched, kept
+  separate from "On ep" (progress), which people bump ahead to mark their overall / sub position.
+- dubSeen() falls back to progress when dub_seen is unset, so every existing show and every lockstep
+  dub-watcher behaves exactly as before — it only decouples once you use the new counter.
+- autoDubCaughtUp() and newDubInfo() now key off dubs watched, not raw progress. So "On ep 3" with
+  only 2 dubs watched now shows "🆕 New dub · Ep 3 to watch" and stays Watching, instead of a false
+  "Caught up".
+- UI: a 🎙️ "Dub watched" stepper on the anime card (own list, when a dub exists; green label to mark
+  it personal vs the shared "Latest dub" row), setDubSeen() capped at the latest dub out, and a
+  matching "Dub episodes you've watched" field in Edit (blank = track your "On ep").
+- App version 2026.10.30a; service-worker cache bumped to v18.
 - CHANGELOG updated
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>

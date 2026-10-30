@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10 — Separate "Dub watched" counter (dubs watched vs. "On ep")
+- New per-user, per-show field `dub_seen` + `dubSeen(s)` helper: how many **dubbed** episodes you've
+  actually watched, kept separate from `progress` ("On ep"), which people push ahead to mark their
+  overall/sub position. `dubSeen()` falls back to `progress` when `dub_seen` is unset/blank, so every
+  existing show and every lockstep dub-watcher behaves exactly as before — it only decouples once you
+  use the new counter.
+- `autoDubCaughtUp()` and `newDubInfo()` now compare **dubs watched** (`dubSeen`) to the latest dub
+  out, instead of raw `progress`. So "On ep 3" with only 2 dubs watched is now **Watching** with a
+  **🆕 New dub · Ep 3 to watch** badge, not a false **Caught up**.
+- UI: a **🎙️ Dub watched** stepper on the anime card (shown when a dub exists; own list only; green
+  label to mark it as personal vs. the shared "Latest dub" row), `setDubSeen(id,delta)` + the
+  `dubseeninc`/`dubseendec` actions (capped at the latest dub that's actually out), and a matching
+  **"Dub episodes you've watched"** field in the Edit panel (blank = track your "On ep").
+- App version → `2026.10.30a`, sw cache → `v18`.
+
 ## 2026-10 — Changing the episode un-marks a mistaken "Finished"/"Dropped"
 - `bump()` (the ＋/− episode stepper) now clears a "done" status: if a show is **Finished** or
   **Dropped** and you change your episode count, it's moved back to **Watching** (and

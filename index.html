@@ -412,6 +412,7 @@
   .wcard.has-newdub{border-color:rgba(31,214,122,.6);box-shadow:0 6px 22px rgba(0,0,0,.35),0 0 18px rgba(31,214,122,.28)}
   .dubrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
   .dubrow .dublbl{font-size:12px;color:var(--muted);font-weight:700}
+  .dubrow.dubseenrow .dublbl{color:#1fd67a}
   .btn.sm.addmine{padding:6px 11px;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border:0}
   .onlist{font-size:12px;color:var(--good);font-weight:700;display:inline-flex;align-items:center}
   .stepper.sm button{width:22px;height:22px;font-size:14px}
@@ -664,6 +665,8 @@
         <div id="epFields">
         <label class="fld">🎙️ Latest dub episode out <span style="color:var(--faint);font-weight:400">(shared with your group)</span></label>
         <input type="number" id="editDubOut" min="0" placeholder="e.g. 8 — leave blank if no dub yet" />
+        <label class="fld">🎙️ Dub episodes you've watched <span style="color:var(--faint);font-weight:400">(yours — blank = same as your “Episode you're on”)</span></label>
+        <input type="number" id="editDubSeen" min="0" placeholder="blank = same as your episode" />
         <label class="fld">🎙️ Dub release day <span style="color:var(--faint);font-weight:400">(shared — leave on Auto to learn it from drops)</span></label>
         <select class="filter" id="editDubDay" style="width:100%">
           <option value="">Auto — learn from when dubs drop</option>
@@ -892,8 +895,12 @@ const BOARD_ID = new URLSearchParams(location.search).get("board") || "main";
    Bump APP_VERSION and prepend an entry whenever you ship features. The popup
    auto-shows once per version (tracked in localStorage), and the ✨ button in the
    header reopens it any time.                                                   */
-const APP_VERSION = "2026.10.28b";
+const APP_VERSION = "2026.10.30a";
 const WHATS_NEW = [
+  { v:"2026.10.30a", title:"Track the dub you’ve watched separately from “On ep”", items:[
+    "🎙️ <b>New “Dub watched” counter</b> — if you bump <b>On ep</b> ahead to mark where you are overall (subs, or just your place) <i>before</i> you’ve watched the dub, the app used to call you <b>Caught up</b> when you weren’t. Now each anime has its own <b>🎙️ Dub watched</b> stepper (and an Edit field), separate from <b>On ep</b>. <b>Caught up</b> and the green <b>🆕 New dub</b> badge key off this number — so you can be <b>On ep 3</b> but <b>Dub watched 2 / 3</b> and the card correctly shows <b>🆕 New dub · Ep 3 to watch</b> until you’ve actually seen it.",
+    "✅ <b>Nothing to change if you watch in lockstep</b> — Dub watched defaults to match your <b>On ep</b>, so existing shows and dub-in-step watchers behave exactly as before. You only touch it when your dub is running behind where you are overall.",
+  ]},
   { v:"2026.10.28b", title:"Fix a mis-marked “Finished” just by changing the episode", items:[
     "↩️ <b>Changing your episode count un-marks “Finished” / “Dropped”</b> — if you tapped <b>Finished</b> (or <b>Dropped</b>) by mistake, just hit <b>＋</b> or <b>−</b> on that show’s episode and it pops right back into your active list as <b>Watching</b> (then <b>Caught up</b> if you’re up to the latest dub). No need to dig into Edit to flip the status back — a quick toast tells you it moved.",
   ]},
@@ -2125,15 +2132,24 @@ function onEpStr(s){
 // bump / AnimeSchedule estimate / AniList) is ahead of their progress on a show they're following,
 // the "Caught up" card should flip to a clear "new episode to watch" state until they bump progress.
 // Returns {count, from, to} (from = next episode to watch, to = latest dub out) or null.
+// How many DUBBED episodes this person has actually watched. Kept separate from "On ep"
+// (progress), which some people push ahead to mark their overall / sub position before they've
+// watched the dub. Defaults to their progress when never set — so lockstep dub-watchers and every
+// existing show behave exactly as before; it only decouples once someone uses the "Dub watched"
+// stepper. This is what Caught-up and the new-dub badge key off, so "On ep 3" no longer counts as
+// caught up on the dub if you've only watched 2 dubbed episodes.
+function dubSeen(s){
+  return (s.dub_seen!=null && s.dub_seen!=="") ? (Number(s.dub_seen)||0) : (Number(s.progress)||0);
+}
 function newDubInfo(s){
   if((s.kind||"anime")!=="anime") return null;
   if(animeFmt(s)==="MOVIE") return null;                       // episode framing doesn't fit films
   if(s.status!=="Watching" && s.status!=="Caught up") return null;   // only shows you're following
   const dl=dubLatest(s.anilistId); if(!dl || !(Number(dl.ep)>0)) return null;
-  const prog=Number(s.progress)||0;
-  const count=dl.ep-prog;
-  if(count<=0) return null;                                    // caught up to (or past) the dub
-  return {count, from:prog+1, to:dl.ep};
+  const seen=dubSeen(s);
+  const count=dl.ep-seen;
+  if(count<=0) return null;                                    // watched every dub that's out
+  return {count, from:seen+1, to:dl.ep};
 }
 function newDubBadgeHTML(s){
   const n=newDubInfo(s); if(!n) return "";
@@ -2215,6 +2231,7 @@ function showCard(s){
       ${social}
       ${ratingRow}
       ${(animeFmt(s)!=="MOVIE" && !ro)?`<div class="dubrow"><span class="dublbl">🎙️ Latest dub</span><span class="stepper"><button data-act="dubdec" data-id="${s.id}">−</button><span>Ep ${dub?dub.ep:0}</span><button data-act="dubinc" data-id="${s.id}">＋</button></span></div>`:""}
+      ${(animeFmt(s)!=="MOVIE" && !ro && dub)?`<div class="dubrow dubseenrow"><span class="dublbl" title="How many dubbed episodes YOU'VE actually watched — separate from 'On ep', which can run ahead if you track subs or your overall position. This is what decides 'Caught up' and the 🆕 new-dub badge.">🎙️ Dub watched</span><span class="stepper"><button data-act="dubseendec" data-id="${s.id}">−</button><span>${dubSeen(s)} / ${dub.ep}</span><button data-act="dubseeninc" data-id="${s.id}">＋</button></span></div>`:""}
       ${animeFmt(s)==="MOVIE" ? "" : `<div class="prog">
         <span class="lbl">On ep</span>
         ${ro
@@ -3064,6 +3081,19 @@ async function setDub(id,delta){
   try{ await store.update(id,patch); }catch(e){ toast(saveErr(e)); }
   autoDubCaughtUp();   // a new dub episode may change whether you're caught up
 }
+// Update how many DUBBED episodes YOU'VE watched (personal, per-show). Separate from "On ep" so
+// you can be further along overall but still behind on the dub. Capped at the latest dub that's
+// actually out (you can't watch an unreleased dub). Drives Caught-up and the new-dub badge.
+async function setDubSeen(id,delta){
+  const s=shows.find(x=>x.id===id); if(!s) return;
+  const dl=dubLatest(s.anilistId);
+  const cap = dl ? Number(dl.ep) : (totalEps(s.anilistId)||9999);
+  const val=Math.max(0, Math.min(cap, dubSeen(s)+delta));
+  s.dub_seen=val;
+  render();
+  try{ await store.update(id,{dub_seen:val}); }catch(e){ toast(saveErr(e)); }
+  autoDubCaughtUp();   // catching up to (or dropping behind) the latest dub flips your status
+}
 // Auto-advance dub status: when you've watched up to (or past) the latest DUBBED episode,
 // mark the show "Caught up"; when a newer dub drops ahead of you, flip it back to "Watching".
 // Scope: only your OWN anime, only between Watching <-> Caught up (never touches Plan to watch /
@@ -3079,9 +3109,9 @@ async function autoDubCaughtUp(){
     if(s.status!=="Watching" && s.status!=="Caught up") return;     // leave other statuses alone
     const dl=dubLatest(s.anilistId);
     if(!dl || !(Number(dl.ep)>0)) return;                           // need a known dubbed-episode count
-    const prog=Number(s.progress)||0, dub=Number(dl.ep);
-    if(prog>=dub && s.status==="Watching") updates.push({s, status:"Caught up"});
-    else if(prog<dub && s.status==="Caught up") updates.push({s, status:"Watching"});
+    const seen=dubSeen(s), dub=Number(dl.ep);                       // compare DUBS WATCHED vs dubs out
+    if(seen>=dub && s.status==="Watching") updates.push({s, status:"Caught up"});
+    else if(seen<dub && s.status==="Caught up") updates.push({s, status:"Watching"});
   });
   if(!updates.length) return;
   autoCaughtRunning=true;
@@ -3236,6 +3266,7 @@ function openEdit(id){
   $("#editProgress").value=s.progress||0;
   editRating=s.rating||0; renderEditStars();
   const gd=dubLatest(s.anilistId); $("#editDubOut").value = gd? gd.ep : (s.dub_ep||"");
+  { const ds=$("#editDubSeen"); if(ds) ds.value = (s.dub_seen!=null && s.dub_seen!=="") ? s.dub_seen : ""; }
   $("#editDubDay").value = (s.dub_day!=null && s.dub_day!=="") ? String(s.dub_day) : "";
   { const dz=$("#editDubOff"); if(dz) dz.checked = dubOff(s.anilistId); }
   const ai=airInfo(s.anilistId); editDelayEp = ai.cd==="upcoming"? (ai.nextEp||null) : null;
@@ -3275,7 +3306,8 @@ async function saveEdit(){
   const prevEp=(dubLatest(s.anilistId)||{}).ep || 0;
   const seriesVal=$("#editSeries").value.trim();
   const dubOffVal = (()=>{ const dz=$("#editDubOff"); return (dz && dz.checked) ? true : null; })();
-  const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating, series:(seriesVal||null), dub_ep:newDub, dub_day:(dubDayVal===""?null:Number(dubDayVal)), dub_off:dubOffVal, delay_ep:(editDelayOn && editDelayEp!=null)?editDelayEp:null};
+  const dubSeenRaw=$("#editDubSeen")?$("#editDubSeen").value:"";
+  const patch={status:$("#editStatus").value, progress:Number($("#editProgress").value)||0, notes:$("#editNotes").value, rating:editRating, series:(seriesVal||null), dub_ep:newDub, dub_seen:(dubSeenRaw===""?null:Number(dubSeenRaw)||0), dub_day:(dubDayVal===""?null:Number(dubDayVal)), dub_off:dubOffVal, delay_ep:(editDelayOn && editDelayEp!=null)?editDelayEp:null};
   // If a newer dub episode was entered by hand, stamp today so the day can be learned.
   if(newDub!=null && newDub>prevEp) patch.dub_date=new Date().toISOString().slice(0,10);
   Object.assign(s,patch); render();
@@ -3602,6 +3634,7 @@ document.addEventListener("click",e=>{
   else if(act==="addrec") addRecToList(id);
   else if(act==="dismissrec") dismissRec(id);
   else if(act==="dubinc") setDub(id,1); else if(act==="dubdec") setDub(id,-1);
+  else if(act==="dubseeninc") setDubSeen(id,1); else if(act==="dubseendec") setDubSeen(id,-1);
   else if(act==="addmine") addFromShow(id);
   else if(act==="edit") openEdit(id); else if(act==="cal") addToCalendar(id);
 });
